@@ -20,7 +20,6 @@ Double-click **Spike Scanner.bat**. Your browser opens **http://localhost:8765**
 
 - The first scan runs right away (about 30 seconds, with a progress bar).
 - **Scan now** rescans any time. Leave the tab open and it rescans every 10 minutes on its own.
-- **Spike depth**: how deep a dip must be. Lower shows more, higher shows only big dumps. Saves automatically.
 - **Cash stack**: see below.
 - Already running? Double-clicking the shortcut again just reopens the page. You can also bookmark it.
 - A small minimized window titled "Spike Scanner" keeps it running. Close it to stop, or it stops
@@ -42,7 +41,7 @@ What the page shows:
 
 - **The best 8 spikes right now**, best opportunity first: enough to fill your GE slots with a few spares.
   More than 8? The rest fold into "+ N more". Items with no spikes fold into one line at the bottom.
-  The spike bar doesn't move to fill the list: a short list just means a quiet market.
+  A short list just means a quiet market.
 - **Normal now**: what the item sells for today (median of the last 3 hours), with its 7-day average below.
 - **Spikes**: how many deep spikes in the last 24h. Red dots on the chart.
 - **Suggested bid**: the deepest standing buy offer that would have caught them.
@@ -63,12 +62,12 @@ Suggested bids and profit use the lower of today's price and the 7-day average t
 
 ## Tuning
 
-The page covers depth and cash stack. Anything else goes in `config.json` (create it if it doesn't exist,
+The page covers the cash stack. Anything else goes in `config.json` (create it if it doesn't exist,
 e.g. `{"spike_max_minutes": 20}`); it's yours and updates never touch it.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `spike_min_pct` | 10 | How deep a spike must be (the page's slider sets this). |
+| `spike_min_pct` | 10 | How deep a spike must be. |
 | `spike_max_age_hours` | 12 | Only spikes this recent count. |
 | `long_baseline_days` | 7 | The long-run average a dip must also be below. |
 | `cash_stack` | 0 | Set on the page. |

@@ -3,7 +3,7 @@
 OSRS instasell spike scanner.
 
   python dip_scanner.py serve   Easiest: opens a local page (http://localhost:8765) with a Scan button,
-                                a depth slider and auto-refresh. "Spike Scanner.bat" runs this.
+                                a cash stack box and auto-refresh. "Spike Scanner.bat" runs this.
   python dip_scanner.py scan    One-click audit: finds deep, short instasell spikes in the last
                                 24h, suggests a lowball bid per item, and opens an HTML report
                                 with a chart for every item.
@@ -494,7 +494,7 @@ def build_report(results, cfg, now, toolbar=""):
                  + "".join(row_html(r, cfg, now).replace("<tr>", '<tr class="more" hidden>', 1) for r in more))
     if not rows:
         rows = ('<tr><td colspan="8" class="empty">No recent spikes on any item. '
-                'Quiet market, or lower the spike depth.</td></tr>')
+                'Quiet market: check back later.</td></tr>')
     quiet_list = ", ".join(escape(r["item"]["name"]) for r in quiet)
 
     html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -599,7 +599,6 @@ IDLE_SHUTDOWN_HOURS = 3
 
 TOOLBAR = """<div class="bar">
   <button id="scan">Scan now</button>
-  <label>Spike depth <input type="range" id="depth" min="6" max="30" step="1" value="__DEPTH__"> <b id="dv">__DEPTH__%</b></label>
   <label>Cash stack <input id="cash" type="text" value="__CASH__" placeholder="e.g. 15m" size="7"></label>
   <progress id="prog" max="1" value="0" hidden></progress>
   <span class="status" id="st">__STATUS__</span>
@@ -608,8 +607,7 @@ TOOLBAR = """<div class="bar">
 (function () {
   const LAST = __LAST__;
   const btn = document.getElementById('scan'), st = document.getElementById('st'),
-        prog = document.getElementById('prog'), depth = document.getElementById('depth'),
-        dv = document.getElementById('dv');
+        prog = document.getElementById('prog');
 
   async function poll() {
     let s;
@@ -628,11 +626,6 @@ TOOLBAR = """<div class="bar">
   }
   function startScan() { fetch('/scan', { method: 'POST' }).then(poll); }
   btn.onclick = startScan;
-  depth.oninput = () => { dv.textContent = depth.value + '%'; };
-  depth.onchange = () => {
-    fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ spike_min_pct: Number(depth.value) }) }).then(poll);
-  };
   function parseGp(t) {
     const m = String(t).trim().toLowerCase().replace(/,/g, '').match(/^([0-9]*[.]?[0-9]+) *([kmb]?)$/);
     if (!m) return null;
@@ -744,8 +737,7 @@ class _Handler(BaseHTTPRequestHandler):
             cfg = load_config()
             status = (f"Last scan {datetime.fromtimestamp(_State.last):%H:%M} · rescans every "
                       f"{AUTO_SCAN_MINUTES} min" if _State.last else "")
-            bar = (TOOLBAR.replace("__DEPTH__", str(cfg["spike_min_pct"]))
-                   .replace("__CASH__", gp(cfg["cash_stack"]) if cfg.get("cash_stack") else "")
+            bar = (TOOLBAR.replace("__CASH__", gp(cfg["cash_stack"]) if cfg.get("cash_stack") else "")
                    .replace("__AUTO__", str(AUTO_SCAN_MINUTES))
                    .replace("__STATUS__", escape(status))
                    .replace("__LAST__", str(_State.last)))
