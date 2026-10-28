@@ -57,7 +57,7 @@ DEFAULT_CONFIG = {
     "choppy_noise_pct": 3,
     "spike_max_minutes": 30,
     "spike_recover_minutes": 60,
-    "bid_share_of_dip": 0.65,  # bid this far down the shallowest recent dip (0.65 = two-thirds)
+    "bid_cushion_pct": 3,      # bid this far (as % of the price) above the bottom of the shallowest recent dip
     "min_profit_pct": 4,       # never suggest a bid that leaves less than this after tax
     "watch_every_minutes": 3,
     "alert_spike_pct": 15,
@@ -371,13 +371,14 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     ref = min(normal, long_base) if long_base else normal
 
     # Suggested bid. A dump fills the HIGHEST standing bids first, so a bid a hair above the bottom
-    # loses to other lowballers. Sit about two-thirds of the way down the shallowest recent dip:
-    # above the pack, so every recent dip would have reached you, while keeping most of the gap.
+    # loses to other lowballers. Sit a fixed cushion (3% of the price) above the bottom of the
+    # shallowest recent dip: above the pack, so every recent dip would have reached you, while
+    # keeping most of the discount.
     pick = None
     if spikes:
         shallowest = min(spikes, key=lambda e: e["pct"])
         min_depth = cfg["min_profit_pct"] + GE_TAX * 100      # depth needed to keep min profit after tax
-        depth = max(shallowest["pct"] * cfg["bid_share_of_dip"], min_depth)
+        depth = max(shallowest["pct"] - cfg["bid_cushion_pct"], min_depth)
         if depth <= shallowest["pct"] - 1:                    # always at least ~1% above the bottom
             bid = price_bid(ref * (1 - depth / 100))
             profit = sell_after_tax(ref) - bid               # resell at the reference price, after tax
@@ -641,9 +642,9 @@ item's {cfg['long_baseline_days']}-day average, lasting {cfg['spike_max_minutes'
 {cfg['spike_recover_minutes']} min. Slow price drifts and noise are ignored; items that normally jump around are marked <em>choppy</em> and ranked lower.
 Chart: <i style="background:var(--sell)"></i>instasell <i style="background:var(--buy)"></i>instabuy
 <i style="border-top:1px dashed var(--muted)"></i>normal price now <i style="border-top:2px dashed var(--gold)"></i>suggested bid,
-red dots are spikes. <b>Suggested bid</b> sits about two-thirds of the way down the shallowest recent dip:
-above where other lowballers cluster (dumps fill the highest bids first), just above a round number, while keeping
-most of the gap. Bids and profit use the lower of today's price and the {cfg['long_baseline_days']}-day average, after 2% tax.</p>
+red dots are spikes. <b>Suggested bid</b> sits {cfg['bid_cushion_pct']}% of the price above the bottom of the shallowest recent
+dip: above where other lowballers cluster (dumps fill the highest bids first), just above a round number, while keeping
+most of the discount. Bids and profit use the lower of today's price and the {cfg['long_baseline_days']}-day average, after 2% tax.</p>
 <div class="wrap"><table>
 <thead><tr><th>Item</th><th>Last 24h</th><th class="num">Normal now</th><th class="num">Spikes</th>
 <th class="num">Deepest</th><th class="num">Suggested bid</th><th class="num">Profit/ea</th></tr></thead>

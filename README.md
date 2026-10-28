@@ -68,8 +68,9 @@ A dump fills the **highest** standing bids first and works down; the bottom of a
 lowest bid that got reached. So a bid a hair above the bottom usually loses to other lowballers.
 The suggested bid instead:
 
-- sits about **two-thirds of the way down the shallowest recent dip**, above where lowballers
-  cluster, so every recent dip would have reached it, while keeping most of the gap,
+- sits **3% of the item's price above the bottom of the shallowest recent dip**: above the
+  lowballers who sit just over the bottom, so every recent dip would have reached it, while keeping
+  most of the discount,
 - never leaves less than **4% profit** after tax,
 - lands **just above a round number** (1,004,111 rather than 1,000,000), because that's where
   other lowballers' offers sit.
@@ -90,7 +91,7 @@ e.g. `{"spike_max_minutes": 20}`); it's yours and updates never touch it.
 | `min_daily_volume` | 25 | Trades per day an item needs to be auto-picked. |
 | `max_auto_items` | 80 | Most items to auto-pick (more = slower scans). |
 | `max_shown` | 8 | How many spikes to show before folding the rest away. |
-| `bid_share_of_dip` | 0.65 | How far down the dip to bid. Higher = more profit, fewer fills. |
+| `bid_cushion_pct` | 3 | How far above the dip bottom to bid, as % of the price. Lower = more profit, fewer fills. |
 | `min_profit_pct` | 4 | Never suggest a bid with less profit than this, after tax. |
 | `spike_max_minutes` | 30 | Longer than this = a price drop, not a spike |
 | `spike_recover_minutes` | 60 | Must bounce back within this |
