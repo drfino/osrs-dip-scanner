@@ -40,7 +40,7 @@ from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO_ZIP = "https://github.com/drfino/osrs-spike-scanner/archive/refs/heads/master.zip"
+REPO_ZIP = "https://github.com/drfino/osrs-dip-scanner/archive/refs/heads/master.zip"
 # Only these files are ever replaced by an update. Your config.json and watchlist.txt are yours.
 UPDATABLE = ("dip_scanner.py", "README.md", "watchlist.example.txt")
 API = "https://prices.runescape.wiki/api/v1/osrs"
