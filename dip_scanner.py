@@ -65,8 +65,8 @@ DEFAULT_CONFIG = {
     "ntfy_topic": "",
     # Auto watchlist from your cash stack (0 = only use watchlist.txt).
     "cash_stack": 0,
-    "trade_slots": 4,          # GE slots you leave lowball offers in
-    "stack_use_pct": 75,       # how much of your cash those offers may tie up
+    "min_item_pct": 5,         # cheapest item to watch, as % of your stack
+    "max_offer_pct": 29,       # most one offer may use, as % of your stack (also the priciest item)
     "min_daily_volume": 25,    # trades per day, so offers can actually fill
     "max_auto_items": 80,      # keep scans quick: top items by daily gp traded
 }
@@ -141,22 +141,17 @@ def sell_after_tax(price):
 # ----------------------------------------------------------------------------- watchlist
 
 def offer_budget(cfg):
-    """How much one lowball offer may tie up: (stack x use%) / slots. None if no cash stack set."""
+    """The most one lowball offer may use. None if no cash stack is set."""
     cash = cfg.get("cash_stack") or 0
-    if cash <= 0:
-        return None
-    return cash * cfg["stack_use_pct"] / 100 / max(1, cfg["trade_slots"])
+    return cash * cfg["max_offer_pct"] / 100 if cash > 0 else None
 
 
 def price_band(cfg):
-    """
-    Items worth watching for this budget. Top: a spike bid (~12% under price) still fits one offer.
-    Bottom: a quarter of the budget, so an offer is at most ~4 units of the item.
-    """
-    budget = offer_budget(cfg)
-    if not budget:
+    """Items worth watching for this stack: from min_item_pct to max_offer_pct of it."""
+    cash = cfg.get("cash_stack") or 0
+    if cash <= 0:
         return None
-    return budget / 4, budget / 0.88
+    return cash * cfg["min_item_pct"] / 100, cash * cfg["max_offer_pct"] / 100
 
 
 def load_watchlist(cfg):
@@ -590,11 +585,7 @@ IDLE_SHUTDOWN_HOURS = 3
 TOOLBAR = """<div class="bar">
   <button id="scan">Scan now</button>
   <label>Spike depth <input type="range" id="depth" min="6" max="30" step="1" value="__DEPTH__"> <b id="dv">__DEPTH__%</b></label>
-  <label>Spikes from the last <select id="age">__AGEOPTS__</select></label>
   <label>Cash stack <input id="cash" type="text" value="__CASH__" placeholder="e.g. 15m" size="7"></label>
-  <label>Offer slots <select id="slots">__SLOTOPTS__</select></label>
-  <span class="status">__BUDGET__</span>
-  <label><input type="checkbox" id="auto" checked> Rescan every __AUTO__ min</label>
   <progress id="prog" max="1" value="0" hidden></progress>
   <span class="status" id="st">__STATUS__</span>
 </div>
@@ -603,9 +594,7 @@ TOOLBAR = """<div class="bar">
   const LAST = __LAST__;
   const btn = document.getElementById('scan'), st = document.getElementById('st'),
         prog = document.getElementById('prog'), depth = document.getElementById('depth'),
-        dv = document.getElementById('dv'), auto = document.getElementById('auto');
-  try { auto.checked = localStorage.getItem('spikeAuto') !== '0'; } catch (e) {}
-  auto.onchange = () => { try { localStorage.setItem('spikeAuto', auto.checked ? '1' : '0'); } catch (e) {} };
+        dv = document.getElementById('dv');
 
   async function poll() {
     let s;
@@ -644,12 +633,7 @@ TOOLBAR = """<div class="bar">
     if (v === null) { st.textContent = 'Type your cash like 15m, 1.2b or 15000000'; st.className = 'status err'; return; }
     setting({ cash_stack: v });
   };
-  document.getElementById('slots').onchange = (e) => setting({ trade_slots: Number(e.target.value) });
-  document.getElementById('age').onchange = (e) => {
-    fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ spike_max_age_hours: Number(e.target.value) }) }).then(poll);
-  };
-  setInterval(() => { if (auto.checked && !document.hidden) startScan(); }, __AUTO__ * 60 * 1000);
+  setInterval(() => { if (!document.hidden) startScan(); }, __AUTO__ * 60 * 1000);
   poll();
 })();
 </script>"""
@@ -704,13 +688,6 @@ def _start_scan():
     threading.Thread(target=work, daemon=True).start()
 
 
-def budget_text(cfg):
-    budget, band = offer_budget(cfg), price_band(cfg)
-    if not budget:
-        return "Enter your cash stack to auto-pick items"
-    return (f"{gp(budget)} per offer · items {gp(band[0])}–{gp(band[1])}")
-
-
 def _save_setting(key, value):
     path = os.path.join(HERE, "config.json")
     data = {}
@@ -750,18 +727,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(200, WAITING_PAGE)
                 return
             cfg = load_config()
-            status = (f"Last scan {datetime.fromtimestamp(_State.last):%H:%M}"
-                      if _State.last else "")
-            age_opts = "".join(
-                f'<option value="{h}"{" selected" if h == cfg["spike_max_age_hours"] else ""}>{h} hours</option>'
-                for h in (3, 6, 12, 24))
+            status = (f"Last scan {datetime.fromtimestamp(_State.last):%H:%M} · rescans every "
+                      f"{AUTO_SCAN_MINUTES} min" if _State.last else "")
             bar = (TOOLBAR.replace("__DEPTH__", str(cfg["spike_min_pct"]))
-                   .replace("__AGEOPTS__", age_opts)
                    .replace("__CASH__", gp(cfg["cash_stack"]) if cfg.get("cash_stack") else "")
-                   .replace("__SLOTOPTS__", "".join(
-                       f'<option value="{n}"{" selected" if n == cfg["trade_slots"] else ""}>{n}</option>'
-                       for n in range(1, 9)))
-                   .replace("__BUDGET__", escape(budget_text(cfg)))
                    .replace("__AUTO__", str(AUTO_SCAN_MINUTES))
                    .replace("__STATUS__", escape(status))
                    .replace("__LAST__", str(_State.last)))
@@ -787,9 +756,6 @@ class _Handler(BaseHTTPRequestHandler):
                 _start_scan()
             elif isinstance(body.get("cash_stack"), (int, float)) and 0 <= body["cash_stack"] <= 1e11:
                 _save_setting("cash_stack", int(body["cash_stack"]))
-                _start_scan()
-            elif isinstance(body.get("trade_slots"), (int, float)) and 1 <= body["trade_slots"] <= 8:
-                _save_setting("trade_slots", int(body["trade_slots"]))
                 _start_scan()
             self._json({"ok": True})
         else:
