@@ -40,7 +40,9 @@ Leave the cash stack empty to scan only your `watchlist.txt`.
 
 What the page shows:
 
-- **Only items that actually spiked**, best opportunity first. Everything else is listed at the bottom.
+- **The best 8 spikes right now**, best opportunity first: enough to fill your GE slots with a few spares.
+  More than 8? The rest fold into "+ N more". Items with no spikes fold into one line at the bottom.
+  The spike bar doesn't move to fill the list: a short list just means a quiet market.
 - **Normal now**: what the item sells for today (median of the last 3 hours), with its 7-day average below.
 - **Spikes**: how many deep spikes in the last 24h. Red dots on the chart.
 - **Suggested bid**: the deepest standing buy offer that would have caught them.
@@ -74,6 +76,7 @@ e.g. `{"spike_max_minutes": 20}`); it's yours and updates never touch it.
 | `max_offer_pct` | 29 | Most one offer may use and priciest item to watch, as % of your stack. |
 | `min_daily_volume` | 25 | Trades per day an item needs to be auto-picked. |
 | `max_auto_items` | 80 | Most items to auto-pick (more = slower scans). |
+| `max_shown` | 8 | How many spikes to show before folding the rest away. |
 | `spike_max_minutes` | 30 | Longer than this = a price drop, not a spike |
 | `spike_recover_minutes` | 60 | Must bounce back within this |
 | `local_window_minutes` | 90 | How much surrounding price defines "normal" |

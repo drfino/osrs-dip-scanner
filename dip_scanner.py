@@ -68,7 +68,8 @@ DEFAULT_CONFIG = {
     "min_item_pct": 5,         # cheapest item to watch, as % of your stack
     "max_offer_pct": 29,       # most one offer may use, as % of your stack (also the priciest item)
     "min_daily_volume": 25,    # trades per day, so offers can actually fill
-    "max_auto_items": 80,      # keep scans quick: top items by daily gp traded
+    "max_auto_items": 80,
+    "max_shown": 8,            # show the best N spikes; the rest fold away      # keep scans quick: top items by daily gp traded
 }
 
 
@@ -485,7 +486,12 @@ def watch_text(cfg, n):
 def build_report(results, cfg, now, toolbar=""):
     with_spikes = [r for r in results if r["spikes"]]
     quiet = [r for r in results if not r["spikes"]]
-    rows = "".join(row_html(r, cfg, now) for r in with_spikes)
+    top, more = with_spikes[:cfg["max_shown"]], with_spikes[cfg["max_shown"]:]
+    rows = "".join(row_html(r, cfg, now) for r in top)
+    if more:
+        rows += (f'<tr class="more-toggle"><td colspan="8"><details><summary>+ {len(more)} more spiked '
+                 f'(weaker picks)</summary></details></td></tr>'
+                 + "".join(row_html(r, cfg, now).replace("<tr>", '<tr class="more" hidden>', 1) for r in more))
     if not rows:
         rows = ('<tr><td colspan="8" class="empty">No recent spikes on any item. '
                 'Quiet market, or lower the spike depth.</td></tr>')
@@ -544,6 +550,8 @@ th.num {{ text-align:right }}
 .rung b {{ color:var(--fg) }}
 .rung.on {{ border-color:var(--gold); color:var(--gold) }}
 .quiet {{ color:var(--muted); font-size:12.5px; margin-top:16px; max-width:120ch }}
+.quiet summary, .more-toggle summary {{ cursor:pointer; color:var(--muted); font-size:12.5px }}
+.more-toggle td {{ padding:8px 12px }}
 .bar {{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; margin:14px 0 4px;
   padding:10px 12px; background:var(--panel); border:1px solid var(--line); border-radius:6px }}
 .bar button {{ font:600 14px var(--sans); padding:7px 16px; border-radius:5px; border:0; cursor:pointer;
@@ -556,7 +564,7 @@ th.num {{ text-align:right }}
 .bar progress {{ width:140px; accent-color:var(--gold) }}
 </style></head><body>
 <header><h1>Spike Scanner</h1>
-<span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} spiked {cfg['spike_min_pct']}%+ in the last {cfg['spike_max_age_hours']}h</span></header>
+<span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} spiked {cfg['spike_min_pct']}%+ in the last {cfg['spike_max_age_hours']}h{f", best {len(top)} shown" if more else ""}</span></header>
 {toolbar}
 <p class="legend">A <b>spike</b> is a 5-minute instasell in the last {cfg['spike_max_age_hours']} hours at least {cfg['spike_min_pct']}% under
 <b>both</b> the price around it (the median of the {cfg['local_window_minutes']} minutes before and after) and the
@@ -570,7 +578,14 @@ red dots are spikes. <b>Suggested bid</b> is the deepest standing offer that wou
 <thead><tr><th>Item</th><th>Last 24h</th><th class="num">Normal now</th><th class="num">Spikes</th>
 <th class="num">Deepest</th><th class="num">Suggested bid</th><th class="num">Profit/ea</th><th>Bid ladder (spikes caught)</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
-<p class="quiet"><b>No spikes:</b> {quiet_list or 'none'}</p>
+<details class="quiet"><summary>{len(quiet)} other item{"" if len(quiet) == 1 else "s"} had no spikes</summary><p>{quiet_list or 'none'}</p></details>
+<script>
+document.querySelectorAll('.more-toggle details').forEach(function (d) {{
+  d.addEventListener('toggle', function () {{
+    document.querySelectorAll('tr.more').forEach(function (r) {{ r.hidden = !d.open; }});
+  }});
+}});
+</script>
 </body></html>"""
     return html
 
