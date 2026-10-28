@@ -105,6 +105,67 @@ def fetch(path, cfg, params=None, retries=3):
             time.sleep(2 * (attempt + 1))
 
 
+class Cache:
+    """
+    Keeps price data between scans (serve mode), so a rescan only fetches what's new:
+    one bulk request per new 5-minute window for ALL items, instead of a request per item.
+    """
+    SLOW_TTL = 3600          # item list, daily volumes, 7-day history: refresh hourly
+    MAX_GAP = 2 * 3600       # if we fell this far behind, just refetch everything
+
+    def __init__(self):
+        self.slow = {}       # key -> (fetched_at, value)
+        self.five = {}       # item id -> {timestamp: point}
+        self.synced_to = 0   # start of the newest 5-minute window merged into self.five
+
+    def get(self, key, ttl, load):
+        hit = self.slow.get(key)
+        if hit and time.time() - hit[0] < ttl:
+            return hit[1]
+        value = load()
+        self.slow[key] = (time.time(), value)
+        return value
+
+
+def cached(cache, key, ttl, load):
+    return cache.get(key, ttl, load) if cache else load()
+
+
+def five_minute_series(it, cfg, cache, now):
+    """24h of 5-minute prices for one item. With a warm cache, no request at all."""
+    if cache and it["id"] in cache.five and now - cache.synced_to < Cache.MAX_GAP:
+        return [cache.five[it["id"]][t] for t in sorted(cache.five[it["id"]])]
+    data = fetch("timeseries", cfg, {"timestep": "5m", "id": it["id"]}).get("data", [])
+    time.sleep(0.15)  # be polite to the free API
+    if cache is not None:
+        cache.five[it["id"]] = {p["timestamp"]: p for p in data}
+    return data
+
+
+def catch_up(cache, cfg, now):
+    """Append the 5-minute windows published since the last scan, for every cached item at once."""
+    if not cache or not cache.five or now - cache.synced_to >= Cache.MAX_GAP:
+        if cache:
+            cache.five.clear()
+            cache.synced_to = 0
+        return
+    newest = int(now // 300 * 300) - 300          # most recent window that's surely complete
+    t = cache.synced_to + 300
+    while t <= newest:
+        data = fetch("5m", cfg, {"timestamp": t}).get("data", {})
+        for sid, d in data.items():
+            series = cache.five.get(int(sid))
+            if series is not None:
+                series[t] = {"timestamp": t, **d}
+        cache.synced_to = t
+        t += 300
+        time.sleep(0.15)
+    cutoff = now - 26 * 3600
+    for series in cache.five.values():
+        for ts in [ts for ts in series if ts < cutoff]:
+            del series[ts]
+
+
 def gp(n):
     if n is None:
         return "-"
@@ -155,9 +216,9 @@ def price_band(cfg):
     return cash * cfg["min_item_pct"] / 100, cash * cfg["max_offer_pct"] / 100
 
 
-def load_watchlist(cfg):
+def load_watchlist(cfg, cache=None):
     """Your watchlist.txt items, plus (if a cash stack is set) every item that fits your budget."""
-    mapping = fetch("mapping", cfg)
+    mapping = cached(cache, "mapping", Cache.SLOW_TTL, lambda: fetch("mapping", cfg))
     by_name = {m["name"].lower(): m for m in mapping}
     by_id = {m["id"]: m for m in mapping}
 
@@ -181,7 +242,7 @@ def load_watchlist(cfg):
     auto = []
     if band:
         lo, hi = band
-        day = fetch("24h", cfg)["data"]
+        day = cached(cache, "24h", Cache.SLOW_TTL, lambda: fetch("24h", cfg)["data"])
         for sid, d in day.items():
             m = by_id.get(int(sid))
             low = d.get("avgLowPrice")
@@ -335,19 +396,28 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
 
 # ----------------------------------------------------------------------------- scan mode
 
-def run_scan(cfg, progress=None):
-    """Scan the whole watchlist. progress(done, total, name) is called per item."""
-    items = load_watchlist(cfg)
+def run_scan(cfg, progress=None, cache=None):
+    """
+    Scan the whole watchlist. progress(done, total, name) is called per item.
+    With a cache (serve mode), rescans fetch only what's new: a few bulk requests in total.
+    """
+    items = load_watchlist(cfg, cache)
     latest = fetch("latest", cfg)["data"]
     now = time.time()
+    catch_up(cache, cfg, now)
+    if cache is not None and not cache.synced_to:
+        cache.synced_to = int(now // 300 * 300) - 300
     results = []
     for i, it in enumerate(items, 1):
         if progress:
             progress(i, len(items), it["name"])
-        recent = fetch("timeseries", cfg, {"timestep": "5m", "id": it["id"]}).get("data", [])
-        time.sleep(0.15)  # be polite to the free API
-        hourly = fetch("timeseries", cfg, {"timestep": "1h", "id": it["id"]}).get("data", [])
-        time.sleep(0.15)
+        recent = five_minute_series(it, cfg, cache, now)
+
+        def load_hourly(item_id=it["id"]):
+            data = fetch("timeseries", cfg, {"timestep": "1h", "id": item_id}).get("data", [])
+            time.sleep(0.15)
+            return data
+        hourly = cached(cache, ("1h", it["id"]), Cache.SLOW_TTL, load_hourly)
         r = analyze(it, recent, latest, cfg, now, hourly)
         if r:
             results.append(r)
@@ -699,6 +769,7 @@ class _State:
     html = ""
     last = 0
     last_request = time.time()
+    cache = Cache()
 
 
 def _start_scan():
@@ -713,7 +784,7 @@ def _start_scan():
 
             def progress(i, n, name):
                 _State.done, _State.total, _State.name = i, n, name
-            results, now = run_scan(cfg, progress)
+            results, now = run_scan(cfg, progress, _State.cache)
             _State.html = build_report(results, cfg, now, toolbar="__TOOLBAR__")
             _State.last = int(now)
         except Exception as e:  # shown on the page

@@ -96,3 +96,8 @@ then run **Test phone alert.bat**.
 ## Data
 
 OSRS Wiki real-time prices API (`prices.runescape.wiki`), the same data the prices site shows.
+The scanner follows the wiki's API guidance: it sends a descriptive User-Agent, and after the first
+scan of a session it only fetches what's new, using bulk requests for all items at once
+(about 3 requests per rescan instead of one per item). Slow-moving data (7-day history, item list,
+daily volumes) refreshes hourly.
+Put your Discord name in `"contact"` in config.json; the wiki asks tools to identify themselves.
