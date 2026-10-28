@@ -26,6 +26,22 @@ Double-click **Spike Scanner.bat**. Your browser opens **http://localhost:8765**
 - A small minimized window titled "Spike Scanner" keeps it running. Close it to stop, or it stops
   on its own after 3 hours with the page closed.
 
+### Let your cash stack pick the items
+
+Type your cash stack into the page (e.g. `15m`) and pick how many GE slots you leave lowball offers in.
+The scanner then watches every item that fits, rechecked on every scan, so the list moves with
+the market and with your stack:
+
+- **Budget per offer** = 75% of your stack ÷ your slots. At 15m and 4 slots: about 2.8m.
+- **Items priced** from a quarter of that budget up to where a spike bid still fits one offer
+  (at 15m: about 0.7m to 3.2m),
+- that trade **25+ times a day**, top 80 by daily gp traded.
+- Items in your `watchlist.txt` are always scanned too, on top of these.
+- Each suggested bid shows **how many to buy** with one offer's budget (capped at the GE limit).
+  Items too expensive for one offer are marked and listed lower.
+
+Leave the cash stack empty to scan only your `watchlist.txt`.
+
 What the page shows:
 
 - **Only items that actually spiked**, best opportunity first. Everything else is listed at the bottom.
@@ -57,6 +73,10 @@ e.g. `{"spike_max_minutes": 20}`); it's yours and updates never touch it.
 | `spike_min_pct` | 10 | How deep a spike must be (the page's slider sets this). |
 | `spike_max_age_hours` | 12 | Only spikes this recent count (the page's dropdown sets this). |
 | `long_baseline_days` | 7 | The long-run average a dip must also be below. |
+| `cash_stack`, `trade_slots` | 0, 4 | Set on the page. |
+| `stack_use_pct` | 75 | How much of your stack your lowball offers may tie up. |
+| `min_daily_volume` | 25 | Trades per day an item needs to be auto-picked. |
+| `max_auto_items` | 80 | Most items to auto-pick (more = slower scans). |
 | `spike_max_minutes` | 30 | Longer than this = a price drop, not a spike |
 | `spike_recover_minutes` | 60 | Must bounce back within this |
 | `local_window_minutes` | 90 | How much surrounding price defines "normal" |

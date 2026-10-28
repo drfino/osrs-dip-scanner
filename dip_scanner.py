@@ -63,8 +63,12 @@ DEFAULT_CONFIG = {
     "alert_spike_pct": 15,
     "alert_max_age_minutes": 10,
     "ntfy_topic": "",
-    "auto_watchlist": {"enabled": False, "min_price": 1_000_000, "max_price": 5_000_000,
-                       "min_daily_volume": 35},
+    # Auto watchlist from your cash stack (0 = only use watchlist.txt).
+    "cash_stack": 0,
+    "trade_slots": 4,          # GE slots you leave lowball offers in
+    "stack_use_pct": 75,       # how much of your cash those offers may tie up
+    "min_daily_volume": 25,    # trades per day, so offers can actually fill
+    "max_auto_items": 80,      # keep scans quick: top items by daily gp traded
 }
 
 
@@ -136,26 +140,32 @@ def sell_after_tax(price):
 
 # ----------------------------------------------------------------------------- watchlist
 
+def offer_budget(cfg):
+    """How much one lowball offer may tie up: (stack x use%) / slots. None if no cash stack set."""
+    cash = cfg.get("cash_stack") or 0
+    if cash <= 0:
+        return None
+    return cash * cfg["stack_use_pct"] / 100 / max(1, cfg["trade_slots"])
+
+
+def price_band(cfg):
+    """
+    Items worth watching for this budget. Top: a spike bid (~12% under price) still fits one offer.
+    Bottom: a quarter of the budget, so an offer is at most ~4 units of the item.
+    """
+    budget = offer_budget(cfg)
+    if not budget:
+        return None
+    return budget / 4, budget / 0.88
+
+
 def load_watchlist(cfg):
+    """Your watchlist.txt items, plus (if a cash stack is set) every item that fits your budget."""
     mapping = fetch("mapping", cfg)
     by_name = {m["name"].lower(): m for m in mapping}
     by_id = {m["id"]: m for m in mapping}
 
-    auto = cfg["auto_watchlist"]
-    if auto.get("enabled"):
-        day = fetch("24h", cfg)["data"]
-        items = []
-        for sid, d in day.items():
-            m = by_id.get(int(sid))
-            low = d.get("avgLowPrice")
-            vol = (d.get("highPriceVolume") or 0) + (d.get("lowPriceVolume") or 0)
-            if m and low and auto["min_price"] <= low <= auto["max_price"] and vol >= auto["min_daily_volume"]:
-                items.append(m)
-        print(f"Auto watchlist: {len(items)} items between {gp(auto['min_price'])} and "
-              f"{gp(auto['max_price'])} with {auto['min_daily_volume']}+ trades/day.")
-        return items
-
-    items, missing = [], []
+    manual, missing = [], []
     path = os.path.join(HERE, "watchlist.txt")
     if not os.path.exists(path):
         shutil.copyfile(os.path.join(HERE, "watchlist.example.txt"), path)
@@ -165,11 +175,35 @@ def load_watchlist(cfg):
             if not name or name.startswith("#"):
                 continue
             m = by_name.get(name.lower())
-            (items if m else missing).append(m or name)
+            (manual if m else missing).append(m or name)
     if missing:
         print("These watchlist names were not found (check spelling against the wiki):")
         for n in missing:
             print("   -", n)
+
+    band = price_band(cfg)
+    auto = []
+    if band:
+        lo, hi = band
+        day = fetch("24h", cfg)["data"]
+        for sid, d in day.items():
+            m = by_id.get(int(sid))
+            low = d.get("avgLowPrice")
+            vol = (d.get("highPriceVolume") or 0) + (d.get("lowPriceVolume") or 0)
+            if m and low and lo <= low <= hi and vol >= cfg["min_daily_volume"]:
+                auto.append((low * vol, m))
+        auto.sort(key=lambda x: x[0], reverse=True)
+        auto = [m for _, m in auto[:cfg["max_auto_items"]]]
+
+    seen, items = set(), []
+    for m in auto + manual:
+        if m["id"] not in seen:
+            seen.add(m["id"])
+            items.append(m)
+    cfg["_watch_info"] = {
+        "auto": len(auto), "manual": len([m for m in manual if m["id"] not in {a["id"] for a in auto}]),
+        "band": band,
+    }
     return items
 
 
@@ -286,6 +320,9 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     ok = [r for r in ladder if r["fills"] >= cfg["spike_min_fills"] and r["profit"] > 0]
     pick = ok[-1] if ok else None            # deepest bid that still caught enough spikes
     score = (pick["profit"] * pick["fills"] if pick else 0) * (0.3 if choppy else 1)
+    budget = offer_budget(cfg)
+    if pick and budget and pick["bid"] > budget:
+        score *= 0.1                         # can't afford it in one offer: list it, but below the rest
 
     lt = latest.get(str(item["id"]), {}) if latest else {}
     now_low, now_low_ts = lt.get("low"), lt.get("lowTime")
@@ -391,8 +428,21 @@ def sparkline(r, w=260, h=56):
             f'{bid_line}{line("avgHighPrice", "hi")}{line("avgLowPrice", "lo")}{dots}</svg>')
 
 
+def offer_qty(cfg, bid, limit):
+    budget = offer_budget(cfg)
+    if not budget or not bid:
+        return None
+    q = int(budget // bid)
+    return min(q, limit) if limit else q
+
+
 def row_html(r, cfg, now):
     it, d, p = r["item"], r["deepest"], r["pick"]
+    qty = offer_qty(cfg, p["bid"], it.get("limit")) if p else None
+    qty_html = ""
+    if qty is not None:
+        qty_html = (f"<div class='sub'>× {qty} = {gp(qty * p['bid'])}</div>" if qty > 0
+                    else "<div class='sub over'>over one offer's budget</div>")
     live = ""
     if r["now_pct"] is not None and r["now_pct"] >= cfg["alert_spike_pct"] and \
             now - (r["now_low_ts"] or 0) <= cfg["alert_max_age_minutes"] * 60:
@@ -414,7 +464,7 @@ def row_html(r, cfg, now):
   <td class="num">{gp(r['base'])}{f"<div class='sub'>7d avg {gp(r['long_base'])}</div>" if r.get('long_base') else ''}</td>
   <td class="num">{len(r['spikes'])}</td>
   <td class="num">{f"-{d['pct']:.1f}%<div class='sub'>{gp(d['low'])} · {ago(d['ts'], now)}</div>" if d else '<span class="sub">none</span>'}</td>
-  <td class="num bidcell">{f"{p['bid']:,}<div class='sub'>caught {p['fills']}</div>" if p else '<span class="sub">-</span>'}</td>
+  <td class="num bidcell">{f"{p['bid']:,}{qty_html}<div class='sub'>caught {p['fills']}</div>" if p else '<span class="sub">-</span>'}</td>
   <td class="num">{gp(p['profit']) if p else '-'}</td>
   <td class="ladder">{ladder}</td>
 </tr>"""
@@ -425,6 +475,16 @@ def write_report(results, cfg, now):
     with open(path, "w", encoding="utf-8") as f:
         f.write(build_report(results, cfg, now))
     return path
+
+
+def watch_text(cfg, n):
+    info = cfg.get("_watch_info") or {}
+    band = info.get("band")
+    if not band:
+        return f"{n} items from your watchlist"
+    extra = f" + {info['manual']} from your list" if info.get("manual") else ""
+    return (f"{n} items: {info.get('auto', 0)} priced {gp(band[0])}–{gp(band[1])} with "
+            f"{cfg['min_daily_volume']}+ trades/day{extra}")
 
 
 def build_report(results, cfg, now, toolbar=""):
@@ -472,6 +532,7 @@ th.num {{ text-align:right }}
 .name a:hover {{ text-decoration:underline }}
 .sub {{ color:var(--muted); font-size:11.5px; font-family:var(--mono) }}
 .bidcell {{ color:var(--gold); font-weight:600 }}
+.sub.over {{ color:var(--warn) }}
 .chip {{ display:inline-block; margin-top:4px; padding:1px 7px; border-radius:99px; font-size:11px; font-weight:600 }}
 .chip.live {{ background:var(--dip); color:#fff }}
 .chip.warn {{ border:1px solid var(--warn); color:var(--warn) }}
@@ -500,7 +561,7 @@ th.num {{ text-align:right }}
 .bar progress {{ width:140px; accent-color:var(--gold) }}
 </style></head><body>
 <header><h1>Spike Scanner</h1>
-<span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {len(results)} items · {len(with_spikes)} spiked {cfg['spike_min_pct']}%+ in the last {cfg['spike_max_age_hours']}h</span></header>
+<span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} spiked {cfg['spike_min_pct']}%+ in the last {cfg['spike_max_age_hours']}h</span></header>
 {toolbar}
 <p class="legend">A <b>spike</b> is a 5-minute instasell in the last {cfg['spike_max_age_hours']} hours at least {cfg['spike_min_pct']}% under
 <b>both</b> the price around it (the median of the {cfg['local_window_minutes']} minutes before and after) and the
@@ -530,6 +591,9 @@ TOOLBAR = """<div class="bar">
   <button id="scan">Scan now</button>
   <label>Spike depth <input type="range" id="depth" min="6" max="30" step="1" value="__DEPTH__"> <b id="dv">__DEPTH__%</b></label>
   <label>Spikes from the last <select id="age">__AGEOPTS__</select></label>
+  <label>Cash stack <input id="cash" type="text" value="__CASH__" placeholder="e.g. 15m" size="7"></label>
+  <label>Offer slots <select id="slots">__SLOTOPTS__</select></label>
+  <span class="status">__BUDGET__</span>
   <label><input type="checkbox" id="auto" checked> Rescan every __AUTO__ min</label>
   <progress id="prog" max="1" value="0" hidden></progress>
   <span class="status" id="st">__STATUS__</span>
@@ -565,6 +629,22 @@ TOOLBAR = """<div class="bar">
     fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ spike_min_pct: Number(depth.value) }) }).then(poll);
   };
+  function parseGp(t) {
+    const m = String(t).trim().toLowerCase().replace(/,/g, '').match(/^([0-9]*[.]?[0-9]+) *([kmb]?)$/);
+    if (!m) return null;
+    return Math.round(parseFloat(m[1]) * ({ k: 1e3, m: 1e6, b: 1e9 }[m[2]] || 1));
+  }
+  function setting(obj) {
+    fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(obj) }).then(poll);
+  }
+  const cash = document.getElementById('cash');
+  cash.onchange = () => {
+    const v = parseGp(cash.value);
+    if (v === null) { st.textContent = 'Type your cash like 15m, 1.2b or 15000000'; st.className = 'status err'; return; }
+    setting({ cash_stack: v });
+  };
+  document.getElementById('slots').onchange = (e) => setting({ trade_slots: Number(e.target.value) });
   document.getElementById('age').onchange = (e) => {
     fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ spike_max_age_hours: Number(e.target.value) }) }).then(poll);
@@ -624,6 +704,13 @@ def _start_scan():
     threading.Thread(target=work, daemon=True).start()
 
 
+def budget_text(cfg):
+    budget, band = offer_budget(cfg), price_band(cfg)
+    if not budget:
+        return "Enter your cash stack to auto-pick items"
+    return (f"{gp(budget)} per offer · items {gp(band[0])}–{gp(band[1])}")
+
+
 def _save_setting(key, value):
     path = os.path.join(HERE, "config.json")
     data = {}
@@ -670,6 +757,11 @@ class _Handler(BaseHTTPRequestHandler):
                 for h in (3, 6, 12, 24))
             bar = (TOOLBAR.replace("__DEPTH__", str(cfg["spike_min_pct"]))
                    .replace("__AGEOPTS__", age_opts)
+                   .replace("__CASH__", gp(cfg["cash_stack"]) if cfg.get("cash_stack") else "")
+                   .replace("__SLOTOPTS__", "".join(
+                       f'<option value="{n}"{" selected" if n == cfg["trade_slots"] else ""}>{n}</option>'
+                       for n in range(1, 9)))
+                   .replace("__BUDGET__", escape(budget_text(cfg)))
                    .replace("__AUTO__", str(AUTO_SCAN_MINUTES))
                    .replace("__STATUS__", escape(status))
                    .replace("__LAST__", str(_State.last)))
@@ -692,6 +784,12 @@ class _Handler(BaseHTTPRequestHandler):
                 _start_scan()
             elif isinstance(age, (int, float)) and 1 <= age <= 24:
                 _save_setting("spike_max_age_hours", int(age))
+                _start_scan()
+            elif isinstance(body.get("cash_stack"), (int, float)) and 0 <= body["cash_stack"] <= 1e11:
+                _save_setting("cash_stack", int(body["cash_stack"]))
+                _start_scan()
+            elif isinstance(body.get("trade_slots"), (int, float)) and 1 <= body["trade_slots"] <= 8:
+                _save_setting("trade_slots", int(body["trade_slots"]))
                 _start_scan()
             self._json({"ok": True})
         else:
