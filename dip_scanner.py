@@ -14,7 +14,8 @@ OSRS instasell spike scanner.
 
 A "spike" is a short, sharp dump that bounces back, measured against the price AROUND it
 (the median instasell of the surrounding 90 minutes), so slow drifts and noise don't count:
-  - the 5-minute average instasell is at least spike_min_pct below that local price,
+  - the 5-minute average instasell is deep enough that a bid beat_by_pct above it still clears
+    min_profit_pct after tax,
   - it lasts no longer than spike_max_minutes,
   - and the price recovers to within half that depth within spike_recover_minutes.
 Items whose price normally jumps around a lot are flagged "choppy" and ranked lower.
@@ -50,14 +51,13 @@ GE_TAX_CAP = 5_000_000
 
 DEFAULT_CONFIG = {
     "contact": "personal GE spike scanner, Discord: derf01",
-    "spike_min_pct": 10,
     "local_window_minutes": 90,
     "long_baseline_days": 7,
     "spike_max_age_hours": 12,
     "choppy_noise_pct": 3,
     "spike_max_minutes": 30,
     "spike_recover_minutes": 60,
-    "bid_cushion_pct": 3,      # bid this far (as % of the price) above the bottom of the shallowest recent dip
+    "beat_by_pct": 3,          # a past dump only counts as filling your bid if it went this much further down
     "min_profit_pct": 4,       # never suggest a bid that leaves less than this after tax
     "watch_every_minutes": 3,
     "alert_spike_pct": 15,
@@ -310,10 +310,12 @@ def find_spikes(pts, local, cfg, now, long_base=None):
         pct = (base - low) / base * 100
         if cur and t - cur["end"] <= 900:
             cur["end"] = t
+            cur["vol"] += p.get("lowPriceVolume") or 0
             if pct > cur["pct"]:
                 cur.update(low=low, ts=t, pct=pct, base=base, local=loc)
         else:
-            cur = {"ts": t, "start": t, "end": t, "low": low, "pct": pct, "base": base, "local": loc}
+            cur = {"ts": t, "start": t, "end": t, "low": low, "pct": pct, "base": base, "local": loc,
+                   "vol": p.get("lowPriceVolume") or 0}
             events.append(cur)
 
     spikes, rejected, stale = [], 0, 0
@@ -353,7 +355,13 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
         return None
     local = local_prices(pts, cfg)
     long_base = long_run_price(hourly, cfg, now)
-    spikes, rejected, stale = find_spikes(pts, local, cfg, now, long_base)
+
+    # A dump worth bidding on must be deep enough that a bid beat_by_pct above it still clears
+    # min_profit_pct after tax. Look at the whole last 24h for evidence of how often dumps happen.
+    min_depth = cfg["min_profit_pct"] + GE_TAX * 100
+    beat = cfg["beat_by_pct"]
+    dump_cfg = dict(cfg, spike_min_pct=min_depth + beat, spike_max_age_hours=24)
+    spikes, rejected, stale = find_spikes(pts, local, dump_cfg, now, long_base)
 
     # Typical wiggle around the local price, ignoring the spikes themselves: is this item calm?
     spike_ts = {p["timestamp"] for e in spikes for p in pts if e["start"] - 300 <= p["timestamp"] <= e["end"] + 300}
@@ -370,25 +378,28 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     # high never makes a bid look better than it is.
     ref = min(normal, long_base) if long_base else normal
 
-    # Suggested bid. A dump fills the HIGHEST standing bids first, so a bid a hair above the bottom
-    # loses to other lowballers. Sit a fixed cushion (3% of the price) above the bottom of the
-    # shallowest recent dip: above the pack, so every recent dip would have reached you, while
-    # keeping most of the discount.
+    # Suggested bid: the bid depth that would have made the most profit over the last 24h.
+    # For every depth from the profit floor to 30% under the normal price, replay the day's
+    # short, recovered dumps: a dump only fills you if it went beat_by_pct further down than
+    # your bid (dumps fill the highest bids first, and other lowballers sit near the bottom),
+    # and you get at most the units dumped in that window, up to what one offer buys.
+    dumps = spikes
     pick = None
-    if spikes:
-        shallowest = min(spikes, key=lambda e: e["pct"])
-        min_depth = cfg["min_profit_pct"] + GE_TAX * 100      # depth needed to keep min profit after tax
-        depth = max(shallowest["pct"] - cfg["bid_cushion_pct"], min_depth)
-        if depth <= shallowest["pct"] - 1:                    # always at least ~1% above the bottom
-            bid = price_bid(ref * (1 - depth / 100))
-            profit = sell_after_tax(ref) - bid               # resell at the reference price, after tax
-            pick = {
-                "bid": bid, "profit": profit, "profit_pct": profit / bid * 100,
-                "fills": sum(1 for e in spikes if e["low"] <= bid),
-                "cushion_pct": (bid - shallowest["low"]) / shallowest["low"] * 100,
-            }
-    score = (pick["profit"] * pick["fills"] if pick else 0) * (0.3 if choppy else 1)
     budget = offer_budget(cfg)
+    depth = min_depth
+    while depth <= 30 and dumps:
+        bid = price_bid(ref * (1 - depth / 100))
+        profit = sell_after_tax(ref) - bid
+        qty = offer_qty(cfg, bid, item.get("limit")) if budget else 1
+        qty = max(qty or 0, 1)
+        hit = [e for e in dumps if e["low"] <= bid * (1 - beat / 100)]
+        units = sum(min(qty, max(1, e["vol"])) for e in hit)
+        ev = units * profit
+        if hit and profit > 0 and (pick is None or ev > pick["ev_day"]):
+            pick = {"bid": bid, "profit": profit, "profit_pct": profit / bid * 100, "depth": depth,
+                    "fills": len(hit), "units": units, "ev_day": ev}
+        depth += 0.5
+    score = (pick["ev_day"] if pick else 0) * (0.3 if choppy else 1)
     if pick and budget and pick["bid"] > budget:
         score *= 0.1                         # can't afford it in one offer: list it, but below the rest
 
@@ -397,7 +408,10 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     now_pct = (normal - now_low) / normal * 100 if now_low else None
 
     deepest = max(spikes, key=lambda e: e["pct"]) if spikes else None
+    # Worth showing: a profitable bid exists, and the item dumped recently (not just a stale day-old dip).
+    recent_dump = any(now - e["ts"] <= cfg["spike_max_age_hours"] * 3600 for e in spikes)
     return {
+        "listable": bool(pick) and recent_dump,
         "item": item, "base": normal, "long_base": long_base, "ref": ref, "stale": stale,
         "spikes": spikes, "rejected": rejected, "deepest": deepest,
         "pick": pick, "score": score, "now_low": now_low, "now_low_ts": now_low_ts,
@@ -452,13 +466,13 @@ def scan(cfg, open_report=True):
 
 
 def print_table(results, cfg, now):
-    with_spikes = [r for r in results if r["spikes"]]
-    print(f"\nSpikes of {cfg['spike_min_pct']}%+ below the surrounding price, last 24h, "
+    with_spikes = [r for r in results if r["listable"]]
+    print(f"\nItems worth a lowball bid, ranked by estimated profit per day (last 24h), "
           f"that bounced back within {cfg['spike_recover_minutes']} min.\n")
     if not with_spikes:
-        print("No spikes on any item. Quiet day, or lower spike_min_pct in config.json.")
+        print("Nothing worth a bid right now. Quiet market: check back later.")
         return
-    hdr = f"{'Item':<32}{'Normal now':>12}{'Spikes':>8}{'Deepest':>18}{'Suggested bid':>15}{'Above dip':>10}{'Profit/ea':>11}"
+    hdr = f"{'Item':<32}{'Normal now':>12}{'Spikes':>8}{'Deepest':>18}{'Suggested bid':>15}{'Under':>8}{'Profit/day':>12}"
     print(hdr)
     print("-" * len(hdr))
     for r in with_spikes:
@@ -466,7 +480,7 @@ def print_table(results, cfg, now):
         deep = f"-{d['pct']:.1f}% {ago(d['ts'], now)}"
         name = r['item']['name'][:28] + (" (choppy)" if r["choppy"] else "")
         print(f"{name[:31]:<32}{gp(r['base']):>12}{len(r['spikes']):>8}{deep:>18}"
-              f"{gp(p['bid']) if p else '-':>15}{(f"{p['cushion_pct']:.1f}%" if p else '-'):>10}{gp(p['profit']) if p else '-':>11}")
+              f"{gp(p['bid']) if p else '-':>15}{(f"-{p['depth']:.1f}%" if p else '-'):>8}{gp(p['ev_day']) if p else '-':>12}")
     print(f"\n{len(results) - len(with_spikes)} other items had no spikes.")
 
 
@@ -536,8 +550,8 @@ def row_html(r, cfg, now):
   <td class="num">{gp(r['base'])}{f"<div class='sub'>7d avg {gp(r['long_base'])}</div>" if r.get('long_base') else ''}</td>
   <td class="num">{len(r['spikes'])}</td>
   <td class="num">{f"-{d['pct']:.1f}%<div class='sub'>{gp(d['low'])} · {ago(d['ts'], now)}</div>" if d else '<span class="sub">none</span>'}</td>
-  <td class="num bidcell">{f"{p['bid']:,}<div class='sub'>{p['cushion_pct']:.1f}% above the dip</div>{qty_html}" if p else '<span class="sub">too shallow to bid</span>'}</td>
-  <td class="num">{f"{gp(p['profit'])}<div class='sub'>{p['profit_pct']:.1f}% after tax</div>" if p else '-'}</td>
+  <td class="num bidcell">{f"{p['bid']:,}<div class='sub'>{p['depth']:.1f}% under normal</div>{qty_html}" if p else '<span class="sub">too shallow to bid</span>'}</td>
+  <td class="num evcell">{f"{gp(p['ev_day'])}<div class='sub'>{gp(p['profit'])} each ({p['profit_pct']:.1f}%)</div><div class='sub'>would have filled {p['fills']}× today</div>" if p else '-'}</td>
 </tr>"""
 
 
@@ -559,16 +573,16 @@ def watch_text(cfg, n):
 
 
 def build_report(results, cfg, now, toolbar=""):
-    with_spikes = [r for r in results if r["spikes"]]
-    quiet = [r for r in results if not r["spikes"]]
+    with_spikes = [r for r in results if r["listable"]]
+    quiet = [r for r in results if not r["listable"]]
     top, more = with_spikes[:cfg["max_shown"]], with_spikes[cfg["max_shown"]:]
     rows = "".join(row_html(r, cfg, now) for r in top)
     if more:
-        rows += (f'<tr class="more-toggle"><td colspan="7"><details><summary>+ {len(more)} more spiked '
+        rows += (f'<tr class="more-toggle"><td colspan="7"><details><summary>+ {len(more)} more worth a bid '
                  f'(weaker picks)</summary></details></td></tr>'
                  + "".join(row_html(r, cfg, now).replace("<tr>", '<tr class="more" hidden>', 1) for r in more))
     if not rows:
-        rows = ('<tr><td colspan="7" class="empty">No recent spikes on any item. '
+        rows = ('<tr><td colspan="7" class="empty">Nothing worth a bid right now. '
                 'Quiet market: check back later.</td></tr>')
     quiet_list = ", ".join(escape(r["item"]["name"]) for r in quiet)
 
@@ -608,6 +622,7 @@ th.num {{ text-align:right }}
 .name a:hover {{ text-decoration:underline }}
 .sub {{ color:var(--muted); font-size:11.5px; font-family:var(--mono) }}
 .bidcell {{ color:var(--gold); font-weight:600 }}
+.evcell {{ font-weight:600 }}
 .sub.over {{ color:var(--warn) }}
 .chip {{ display:inline-block; margin-top:4px; padding:1px 7px; border-radius:99px; font-size:11px; font-weight:600 }}
 .chip.live {{ background:var(--dip); color:#fff }}
@@ -634,22 +649,24 @@ th.num {{ text-align:right }}
 .bar progress {{ width:140px; accent-color:var(--gold) }}
 </style></head><body>
 <header><h1>Spike Scanner</h1>
-<span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} spiked {cfg['spike_min_pct']}%+ in the last {cfg['spike_max_age_hours']}h{f", best {len(top)} shown" if more else ""}</span></header>
+<span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} worth a bid{f", best {len(top)} shown" if more else ""}</span></header>
 {toolbar}
-<p class="legend">A <b>spike</b> is a 5-minute instasell in the last {cfg['spike_max_age_hours']} hours at least {cfg['spike_min_pct']}% under
-<b>both</b> the price around it (the median of the {cfg['local_window_minutes']} minutes before and after) and the
-item's {cfg['long_baseline_days']}-day average, lasting {cfg['spike_max_minutes']} min or less, that bounced back within
-{cfg['spike_recover_minutes']} min. Slow price drifts and noise are ignored; items that normally jump around are marked <em>choppy</em> and ranked lower.
+<p class="legend">A <b>dump</b> is a 5-minute instasell deep enough that a bid {cfg['beat_by_pct']}% above it still makes
+{cfg['min_profit_pct']}%+ profit after tax ({cfg['min_profit_pct'] + cfg['beat_by_pct'] + 2:g}%+ under <b>both</b> the price around it and the
+{cfg['long_baseline_days']}-day average), lasting {cfg['spike_max_minutes']} min or less and bouncing back within {cfg['spike_recover_minutes']} min.
+Items are listed if they dumped in the last {cfg['spike_max_age_hours']}h; choppy items are ranked lower.
 Chart: <i style="background:var(--sell)"></i>instasell <i style="background:var(--buy)"></i>instabuy
 <i style="border-top:1px dashed var(--muted)"></i>normal price now <i style="border-top:2px dashed var(--gold)"></i>suggested bid,
-red dots are spikes. <b>Suggested bid</b> sits {cfg['bid_cushion_pct']}% of the price above the bottom of the shallowest recent
-dip: above where other lowballers cluster (dumps fill the highest bids first), just above a round number, while keeping
-most of the discount. Bids and profit use the lower of today's price and the {cfg['long_baseline_days']}-day average, after 2% tax.</p>
+red dots are spikes. <b>Suggested bid</b> is the bid that would have made the most profit over the last 24h:
+every depth from {cfg['min_profit_pct']}% profit up to 30% under is replayed against the day's dumps, counting a dump only if it
+went {cfg['beat_by_pct']}% past your bid (dumps fill the highest bids first) and only up to the units dumped.
+<b>Est. profit/day</b> is what that bid would have made in the last 24h, and is what the list is ranked by.
+Prices use the lower of today's price and the {cfg['long_baseline_days']}-day average, after 2% tax.</p>
 <div class="wrap"><table>
-<thead><tr><th>Item</th><th>Last 24h</th><th class="num">Normal now</th><th class="num">Spikes</th>
-<th class="num">Deepest</th><th class="num">Suggested bid</th><th class="num">Profit/ea</th></tr></thead>
+<thead><tr><th>Item</th><th>Last 24h</th><th class="num">Normal now</th><th class="num">Dumps (24h)</th>
+<th class="num">Deepest</th><th class="num">Suggested bid</th><th class="num">Est. profit/day</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
-<details class="quiet"><summary>{len(quiet)} other item{"" if len(quiet) == 1 else "s"} had no spikes</summary><p>{quiet_list or 'none'}</p></details>
+<details class="quiet"><summary>{len(quiet)} other item{"" if len(quiet) == 1 else "s"} not worth a bid right now</summary><p>{quiet_list or 'none'}</p></details>
 <script>
 document.querySelectorAll('.more-toggle details').forEach(function (d) {{
   d.addEventListener('toggle', function () {{
@@ -856,12 +873,8 @@ class _Handler(BaseHTTPRequestHandler):
         elif self.path == "/settings":
             n = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(n) or b"{}")
-            pct = body.get("spike_min_pct")
             age = body.get("spike_max_age_hours")
-            if isinstance(pct, (int, float)) and 1 <= pct <= 50:
-                _save_setting("spike_min_pct", int(pct))
-                _start_scan()
-            elif isinstance(age, (int, float)) and 1 <= age <= 24:
+            if isinstance(age, (int, float)) and 1 <= age <= 24:
                 _save_setting("spike_max_age_hours", int(age))
                 _start_scan()
             elif isinstance(body.get("cash_stack"), (int, float)) and 0 <= body["cash_stack"] <= 1e11:

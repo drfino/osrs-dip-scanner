@@ -1,6 +1,6 @@
 # OSRS Spike Scanner
 
-Finds the deep, short instasell **spikes** on your watchlist, the kind where someone dumps
+Finds the deep, short instasell **dumps** on your watchlist, the kind where someone sells
 an item far below its price and it bounces right back, so you know where to leave lowball
 offers. It ignores small wiggles and slow price drifts.
 
@@ -40,40 +40,47 @@ Leave the cash stack empty to scan only your `watchlist.txt`.
 
 What the page shows:
 
-- **The best 8 spikes right now**, best opportunity first: enough to fill your GE slots with a few spares.
-  More than 8? The rest fold into "+ N more". Items with no spikes fold into one line at the bottom.
+- **The best 8 items worth a bid right now**, ranked by **est. profit/day**: enough to fill your GE
+  slots with a few spares. Items that aren't worth a bid fold into one line at the bottom.
   A short list just means a quiet market.
 - **Normal now**: what the item sells for today (median of the last 3 hours), with its 7-day average below.
-- **Spikes**: how many deep spikes in the last 24h. Red dots on the chart.
-- **Suggested bid**: where to leave your lowball offer (see below), how far above the dip it sits,
-  and how many to buy.
-- **Profit/ea**: if you resell at today's normal price (or the 7-day average, if lower), after the 2% GE tax.
-- **Choppy price**: this item normally jumps around a lot, so treat its spikes with caution.
+- **Dumps (24h)**: how many qualifying dumps in the last 24h. Red dots on the chart.
+- **Deepest**: the lowest dump, how far under normal, and how long ago.
+- **Suggested bid**: where to leave your offer, how far under normal it is, and how many to buy.
+- **Est. profit/day**: what that bid would have made over the last 24h, profit each, and how many
+  times it would have filled.
+- **Choppy price**: this item normally jumps around a lot, so it's ranked lower.
 
-## What counts as a spike
+## What counts as a dump
 
-A 5-minute instasell, **in the last 12 hours**, that is:
-- **10%+ below BOTH** the price around it (median of the 90 minutes before and after) **and** the
-  item's 7-day average. Whichever is lower is the bar, so:
+A 5-minute instasell that is:
+- **deep enough to profit from**: 9%+ below BOTH the price around it (median of the 90 minutes
+  before and after) **and** the item's 7-day average. 9% = a bid 3% above it still clears 4% profit
+  after the 2% tax. Whichever price is lower is the bar, so:
   - an item drifting down all day is judged against today's lower price, and
   - an item that has risen isn't credited for a dip that only fell back to last week's price.
 - **short**: 30 minutes or less,
-- **bounces back** within an hour. A price that drops and stays down is a crash, not a spike.
+- **bounces back** within an hour. A price that drops and stays down is a crash, not a dump.
 
-Suggested bids and profit use the lower of today's price and the 7-day average too.
+An item is listed only if it dumped **in the last 12 hours** (dead items drop off), but the bid uses
+the whole last 24 hours as evidence.
 
 ## How the suggested bid works
 
-A dump fills the **highest** standing bids first and works down; the bottom of a spike is just the
-lowest bid that got reached. So a bid a hair above the bottom usually loses to other lowballers.
-The suggested bid instead:
+The goal is the most profit per day, not the deepest discount. A bid that catches one huge dump a
+week loses to one that fills on every ordinary dump.
 
-- sits **3% of the item's price above the bottom of the shallowest recent dip**: above the
-  lowballers who sit just over the bottom, so every recent dip would have reached it, while keeping
-  most of the discount,
-- never leaves less than **4% profit** after tax,
-- lands **just above a round number** (1,004,111 rather than 1,000,000), because that's where
-  other lowballers' offers sit.
+So the scanner replays the last 24 hours. For every bid from 4% profit up to 30% under normal, it asks:
+- **Would it have filled?** Dumps fill the highest bids first, and other lowballers sit just above the
+  bottom. A dump only counts if it went **3% past your bid**, so you'd have been ahead of that pack.
+- **How many?** Your offer size, or the units that dump actually sold, whichever is smaller.
+- **For how much?** Normal price after tax, minus your bid.
+
+The bid that would have made the most is the suggestion, landed **just above a round number**
+(1,004,111 rather than 1,000,000), since that's where other offers cluster. Items are ranked by that
+estimated profit/day, so a reliable −9% dumper can outrank a one-off −20% crash.
+
+It's an estimate from one day. Re-check daily and move offers that stopped filling.
 
 ## Tuning
 
@@ -82,18 +89,17 @@ e.g. `{"spike_max_minutes": 20}`); it's yours and updates never touch it.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `spike_min_pct` | 10 | How deep a spike must be. |
-| `spike_max_age_hours` | 12 | Only spikes this recent count. |
+| `spike_max_age_hours` | 12 | Only items that dumped this recently are listed. |
 | `long_baseline_days` | 7 | The long-run average a dip must also be below. |
 | `cash_stack` | 0 | Set on the page. |
 | `min_item_pct` | 5 | Cheapest item to watch, as % of your stack. |
 | `max_offer_pct` | 29 | Most one offer may use and priciest item to watch, as % of your stack. |
 | `min_daily_volume` | 25 | Trades per day an item needs to be auto-picked. |
 | `max_auto_items` | 80 | Most items to auto-pick (more = slower scans). |
-| `max_shown` | 8 | How many spikes to show before folding the rest away. |
-| `bid_cushion_pct` | 3 | How far above the dip bottom to bid, as % of the price. Lower = more profit, fewer fills. |
-| `min_profit_pct` | 4 | Never suggest a bid with less profit than this, after tax. |
-| `spike_max_minutes` | 30 | Longer than this = a price drop, not a spike |
+| `max_shown` | 8 | How many items to show. |
+| `beat_by_pct` | 3 | How far a dump must go past your bid to count as a fill. Higher = safer bids, less profit. |
+| `min_profit_pct` | 4 | Never suggest a bid with less profit than this, after tax. Also sets how deep a dump must be. |
+| `spike_max_minutes` | 30 | Longer than this = a price drop, not a dump |
 | `spike_recover_minutes` | 60 | Must bounce back within this |
 | `local_window_minutes` | 90 | How much surrounding price defines "normal" |
 | `choppy_noise_pct` | 3 | Items that normally move more than this every 5 min are marked choppy |
