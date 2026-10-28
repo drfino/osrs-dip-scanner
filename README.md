@@ -7,7 +7,7 @@ offers. It ignores small wiggles and slow price drifts.
 ## Setup (once)
 
 1. Install Python 3 from python.org (tick **"Add python.exe to PATH"** in the installer).
-2. On GitHub, click **Code → Download ZIP**, and unzip it somewhere, e.g. `Documents\osrs-spike-scanner`.
+2. On GitHub, click **Code → Download ZIP**, and unzip it somewhere, e.g. `Documents\osrs-dip-scanner`.
 3. Optional: right-click **Spike Scanner.bat** → **Send to → Desktop (create shortcut)**.
 
 That's the only download you ever need. **It updates itself:** every time you start it, it fetches the
