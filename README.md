@@ -18,7 +18,8 @@ are never overwritten.
 
 Double-click **Spike Scanner.bat**. Your browser opens **http://localhost:8765**:
 
-- The first scan runs right away (about 30 seconds, with a progress bar).
+- The first time, it asks for your cash stack, then scans (about 30 seconds, with a progress bar).
+  After that it remembers your stack and scans as soon as it opens.
 - **Scan now** rescans any time. Leave the tab open and it rescans every 10 minutes on its own.
 - **Cash stack**: see below.
 - Already running? Double-clicking the shortcut again just reopens the page. You can also bookmark it.

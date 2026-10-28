@@ -646,6 +646,34 @@ TOOLBAR = """<div class="bar">
 })();
 </script>"""
 
+SETUP_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Spike Scanner</title>
+<style>body{margin:0;display:grid;place-items:center;height:100vh;background:#1d1c19;color:#ece6d8;
+font:15px system-ui,sans-serif}@media (prefers-color-scheme: light){body{background:#f3f1ec;color:#24221d}}
+.box{max-width:420px;text-align:center}input{font:16px system-ui;padding:8px 10px;width:160px;border-radius:5px;
+border:1px solid #6f6a5e;background:transparent;color:inherit}button{font:600 15px system-ui;padding:9px 18px;
+border:0;border-radius:5px;background:#e3b341;color:#1d1c19;cursor:pointer;margin-left:6px}
+p{color:#a39c8b}a{color:#a39c8b;font-size:13px}.err{color:#ff5a5f;min-height:1.4em}</style></head><body>
+<div class="box"><h2>Spike Scanner</h2>
+<p>What's your cash stack? It picks items that fit it (about 5% to 29% of your stack per item).
+You can change it any time on the main page.</p>
+<form id="f"><input id="cash" placeholder="e.g. 15m" autofocus><button>Scan</button></form>
+<div class="err" id="err"></div>
+<a href="#" id="skip">Skip, just scan the items in watchlist.txt</a></div>
+<script>
+function parseGp(t){const m=String(t).trim().toLowerCase().replace(/,/g,'').match(/^([0-9]*[.]?[0-9]+) *([kmb]?)$/);
+return m?Math.round(parseFloat(m[1])*({k:1e3,m:1e6,b:1e9}[m[2]]||1)):null}
+function send(o){fetch('/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)})
+.then(()=>location.reload())}
+document.getElementById('f').onsubmit=e=>{e.preventDefault();const v=parseGp(document.getElementById('cash').value);
+if(!v){document.getElementById('err').textContent='Type it like 15m, 1.2b or 15000000';return}send({cash_stack:v})};
+document.getElementById('skip').onclick=e=>{e.preventDefault();send({skip_setup:true})};
+</script></body></html>"""
+
+
+def _needs_setup(cfg):
+    return not cfg.get("cash_stack") and not cfg.get("setup_done")
+
+
 WAITING_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Spike Scanner</title>
 <style>body{margin:0;display:grid;place-items:center;height:100vh;background:#1d1c19;color:#ece6d8;
 font:15px system-ui,sans-serif}@media (prefers-color-scheme: light){body{background:#f3f1ec;color:#24221d}}
@@ -730,6 +758,9 @@ class _Handler(BaseHTTPRequestHandler):
                         "name": _State.name, "error": _State.error, "last": _State.last})
         elif self.path in ("/", "/index.html"):
             if not _State.html:
+                if not _State.running and _needs_setup(load_config()):
+                    self._send(200, SETUP_PAGE)
+                    return
                 if not _State.running:
                     _start_scan()
                 self._send(200, WAITING_PAGE)
@@ -763,6 +794,10 @@ class _Handler(BaseHTTPRequestHandler):
                 _start_scan()
             elif isinstance(body.get("cash_stack"), (int, float)) and 0 <= body["cash_stack"] <= 1e11:
                 _save_setting("cash_stack", int(body["cash_stack"]))
+                _save_setting("setup_done", True)
+                _start_scan()
+            elif body.get("skip_setup") is True:
+                _save_setting("setup_done", True)
                 _start_scan()
             self._json({"ok": True})
         else:
@@ -831,7 +866,8 @@ def serve(open_browser=True, update=True):
     print(f"Spike Scanner is running at {URL}")
     print("Close this window to stop it. It also stops by itself after "
           f"{IDLE_SHUTDOWN_HOURS} hours of nobody looking at the page.")
-    _start_scan()
+    if not _needs_setup(load_config()):
+        _start_scan()               # first launch waits for your cash stack instead
     if open_browser:
         webbrowser.open(URL)
     server.serve_forever()
