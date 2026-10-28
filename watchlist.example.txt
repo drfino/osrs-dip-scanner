@@ -1,0 +1,53 @@
+# Starter watchlist. Copied to watchlist.txt the first time you run the scanner.
+# Edit watchlist.txt (not this file): one item name per line, exactly as the prices site spells it.
+# Lines starting with # are ignored.
+Crystal armour seed
+Amulet of fury
+Berserker ring
+Archers ring
+Lightbearer
+Enhanced crystal teleport seed
+Hallowfell
+Elidinis' ward
+Ursine chainmace (u)
+Dragonfire shield
+Dharok's armour set
+Burning claws
+Tome of Fire (empty)
+Serpentine helm (uncharged)
+Zombie axe
+Eternal boots
+Brimstone ring
+Soulflame horn
+Granite hammer
+Ahrim's robeskirt
+Ahrim's robetop
+Dual macuahuitl
+Mage's book
+Virtus mask
+Regen bracelet
+Rosewood blowpipe (empty)
+Ancient statuette
+Accursed sceptre (u)
+Robin Hood hat
+Mystic smoke staff
+Eclipse Moon chestplate
+Berserker necklace
+Blood Moon chestplate
+Uncharged toxic trident
+Master wand
+Eclipse Moon tassets
+Uncut onyx
+Guardian boots
+Odium ward
+Sunfire fanatic cuirass
+Malediction ward
+Dragon harpoon
+Dragon felling axe
+Echo crystal
+Sunfire fanatic chausses
+Arcane prayer scroll
+Bottled storm
+Dharok's greataxe 0
+Blue Moon tassets
+Dharok's greataxe
