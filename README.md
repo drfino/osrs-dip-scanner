@@ -45,8 +45,9 @@ What the page shows:
   A short list just means a quiet market.
 - **Normal now**: what the item sells for today (median of the last 3 hours), with its 7-day average below.
 - **Spikes**: how many deep spikes in the last 24h. Red dots on the chart.
-- **Suggested bid**: the deepest standing buy offer that would have caught them.
-- **Profit/ea**: if you resell at today's normal price, after the 2% GE tax.
+- **Suggested bid**: where to leave your lowball offer (see below), how far above the dip it sits,
+  and how many to buy.
+- **Profit/ea**: if you resell at today's normal price (or the 7-day average, if lower), after the 2% GE tax.
 - **Choppy price**: this item normally jumps around a lot, so treat its spikes with caution.
 
 ## What counts as a spike
@@ -60,6 +61,18 @@ A 5-minute instasell, **in the last 12 hours**, that is:
 - **bounces back** within an hour. A price that drops and stays down is a crash, not a spike.
 
 Suggested bids and profit use the lower of today's price and the 7-day average too.
+
+## How the suggested bid works
+
+A dump fills the **highest** standing bids first and works down; the bottom of a spike is just the
+lowest bid that got reached. So a bid a hair above the bottom usually loses to other lowballers.
+The suggested bid instead:
+
+- sits about **two-thirds of the way down the shallowest recent dip**, above where lowballers
+  cluster, so every recent dip would have reached it, while keeping most of the gap,
+- never leaves less than **4% profit** after tax,
+- lands **just above a round number** (1,004,111 rather than 1,000,000), because that's where
+  other lowballers' offers sit.
 
 ## Tuning
 
@@ -77,11 +90,12 @@ e.g. `{"spike_max_minutes": 20}`); it's yours and updates never touch it.
 | `min_daily_volume` | 25 | Trades per day an item needs to be auto-picked. |
 | `max_auto_items` | 80 | Most items to auto-pick (more = slower scans). |
 | `max_shown` | 8 | How many spikes to show before folding the rest away. |
+| `bid_share_of_dip` | 0.65 | How far down the dip to bid. Higher = more profit, fewer fills. |
+| `min_profit_pct` | 4 | Never suggest a bid with less profit than this, after tax. |
 | `spike_max_minutes` | 30 | Longer than this = a price drop, not a spike |
 | `spike_recover_minutes` | 60 | Must bounce back within this |
 | `local_window_minutes` | 90 | How much surrounding price defines "normal" |
 | `choppy_noise_pct` | 3 | Items that normally move more than this every 5 min are marked choppy |
-| `spike_bid_levels_pct` | 10 … 40 | The bid depths shown in the ladder |
 
 Edit `watchlist.txt` to add or remove items (names exactly as on the prices site). It's created
 from `watchlist.example.txt` the first time you run the scanner.
@@ -100,4 +114,4 @@ The scanner follows the wiki's API guidance: it sends a descriptive User-Agent, 
 scan of a session it only fetches what's new, using bulk requests for all items at once
 (about 3 requests per rescan instead of one per item). Slow-moving data (7-day history, item list,
 daily volumes) refreshes hourly.
-Put your Discord name in `"contact"` in config.json; the wiki asks tools to identify themselves.
+Requests identify the tool and its owner's Discord, as the wiki asks.

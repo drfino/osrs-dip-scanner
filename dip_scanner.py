@@ -49,7 +49,7 @@ GE_TAX = 0.02          # 2% sell tax
 GE_TAX_CAP = 5_000_000
 
 DEFAULT_CONFIG = {
-    "contact": "osrs-dip-scanner personal watchlist",
+    "contact": "personal GE spike scanner, Discord: derf01",
     "spike_min_pct": 10,
     "local_window_minutes": 90,
     "long_baseline_days": 7,
@@ -57,8 +57,8 @@ DEFAULT_CONFIG = {
     "choppy_noise_pct": 3,
     "spike_max_minutes": 30,
     "spike_recover_minutes": 60,
-    "spike_bid_levels_pct": [10, 15, 20, 25, 30, 40],
-    "spike_min_fills": 1,
+    "bid_share_of_dip": 0.65,  # bid this far down the shallowest recent dip (0.65 = two-thirds)
+    "min_profit_pct": 4,       # never suggest a bid that leaves less than this after tax
     "watch_every_minutes": 3,
     "alert_spike_pct": 15,
     "alert_max_age_minutes": 10,
@@ -190,10 +190,14 @@ def ago(ts, now=None):
     return f"{s / 86400:.1f}d ago"
 
 
-def round_bid(p):
-    """Round a bid down to a clean number people actually type."""
+def price_bid(p):
+    """
+    A bid that sits just ABOVE a round number (1,004,111 rather than 1,000,000), because other
+    lowballers cluster on round numbers and the GE fills the highest bids first.
+    """
     step = 10_000 if p >= 10_000_000 else 1_000 if p >= 1_000_000 else 100 if p >= 10_000 else 1
-    return int(p // step * step)
+    bump = step * 111 // 1000
+    return int(p // step * step + bump)
 
 
 def sell_after_tax(price):
@@ -366,16 +370,22 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     # high never makes a bid look better than it is.
     ref = min(normal, long_base) if long_base else normal
 
-    # Bid ladder: a standing offer N% under the reference catches every spike at least N% deep.
-    ladder = []
-    for lvl in cfg["spike_bid_levels_pct"]:
-        bid = round_bid(ref * (1 - lvl / 100))
-        fills = sum(1 for e in spikes if e["pct"] >= lvl)
-        profit = sell_after_tax(ref) - bid  # resell at the reference price, after tax
-        ladder.append({"pct": lvl, "bid": bid, "fills": fills, "profit": profit})
-
-    ok = [r for r in ladder if r["fills"] >= cfg["spike_min_fills"] and r["profit"] > 0]
-    pick = ok[-1] if ok else None            # deepest bid that still caught enough spikes
+    # Suggested bid. A dump fills the HIGHEST standing bids first, so a bid a hair above the bottom
+    # loses to other lowballers. Sit about two-thirds of the way down the shallowest recent dip:
+    # above the pack, so every recent dip would have reached you, while keeping most of the gap.
+    pick = None
+    if spikes:
+        shallowest = min(spikes, key=lambda e: e["pct"])
+        min_depth = cfg["min_profit_pct"] + GE_TAX * 100      # depth needed to keep min profit after tax
+        depth = max(shallowest["pct"] * cfg["bid_share_of_dip"], min_depth)
+        if depth <= shallowest["pct"] - 1:                    # always at least ~1% above the bottom
+            bid = price_bid(ref * (1 - depth / 100))
+            profit = sell_after_tax(ref) - bid               # resell at the reference price, after tax
+            pick = {
+                "bid": bid, "profit": profit, "profit_pct": profit / bid * 100,
+                "fills": sum(1 for e in spikes if e["low"] <= bid),
+                "cushion_pct": (bid - shallowest["low"]) / shallowest["low"] * 100,
+            }
     score = (pick["profit"] * pick["fills"] if pick else 0) * (0.3 if choppy else 1)
     budget = offer_budget(cfg)
     if pick and budget and pick["bid"] > budget:
@@ -389,7 +399,7 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     return {
         "item": item, "base": normal, "long_base": long_base, "ref": ref, "stale": stale,
         "spikes": spikes, "rejected": rejected, "deepest": deepest,
-        "ladder": ladder, "pick": pick, "score": score, "now_low": now_low, "now_low_ts": now_low_ts,
+        "pick": pick, "score": score, "now_low": now_low, "now_low_ts": now_low_ts,
         "now_pct": now_pct, "pts": pts, "noise": noise, "choppy": choppy,
     }
 
@@ -447,7 +457,7 @@ def print_table(results, cfg, now):
     if not with_spikes:
         print("No spikes on any item. Quiet day, or lower spike_min_pct in config.json.")
         return
-    hdr = f"{'Item':<32}{'Normal now':>12}{'Spikes':>8}{'Deepest':>18}{'Suggested bid':>15}{'Caught':>8}{'Profit/ea':>11}"
+    hdr = f"{'Item':<32}{'Normal now':>12}{'Spikes':>8}{'Deepest':>18}{'Suggested bid':>15}{'Above dip':>10}{'Profit/ea':>11}"
     print(hdr)
     print("-" * len(hdr))
     for r in with_spikes:
@@ -455,7 +465,7 @@ def print_table(results, cfg, now):
         deep = f"-{d['pct']:.1f}% {ago(d['ts'], now)}"
         name = r['item']['name'][:28] + (" (choppy)" if r["choppy"] else "")
         print(f"{name[:31]:<32}{gp(r['base']):>12}{len(r['spikes']):>8}{deep:>18}"
-              f"{gp(p['bid']) if p else '-':>15}{(p['fills'] if p else 0):>8}{gp(p['profit']) if p else '-':>11}")
+              f"{gp(p['bid']) if p else '-':>15}{(f"{p['cushion_pct']:.1f}%" if p else '-'):>10}{gp(p['profit']) if p else '-':>11}")
     print(f"\n{len(results) - len(with_spikes)} other items had no spikes.")
 
 
@@ -517,11 +527,6 @@ def row_html(r, cfg, now):
         live = '<span class="chip warn">Recent, not recovered yet</span>'
     if r["choppy"]:
         live += f' <span class="chip warn" title="Normally moves about {r['noise']:.1f}% every 5 min">Choppy price</span>'
-    ladder = "".join(
-        f'<span class="rung{" on" if p and q["pct"] == p["pct"] else ""}" title="Bid {q["bid"]:,}: '
-        f'caught {q["fills"]} spike(s), {gp(q["profit"])} profit each after tax">'
-        f'-{q["pct"]}% <b>{q["fills"]}</b></span>'
-        for q in r["ladder"])
     return f"""
 <tr>
   <td class="name"><a href="{ITEM_PAGE.format(it['id'])}" target="_blank" rel="noopener">{escape(it['name'])}</a>
@@ -530,9 +535,8 @@ def row_html(r, cfg, now):
   <td class="num">{gp(r['base'])}{f"<div class='sub'>7d avg {gp(r['long_base'])}</div>" if r.get('long_base') else ''}</td>
   <td class="num">{len(r['spikes'])}</td>
   <td class="num">{f"-{d['pct']:.1f}%<div class='sub'>{gp(d['low'])} · {ago(d['ts'], now)}</div>" if d else '<span class="sub">none</span>'}</td>
-  <td class="num bidcell">{f"{p['bid']:,}{qty_html}<div class='sub'>caught {p['fills']}</div>" if p else '<span class="sub">-</span>'}</td>
-  <td class="num">{gp(p['profit']) if p else '-'}</td>
-  <td class="ladder">{ladder}</td>
+  <td class="num bidcell">{f"{p['bid']:,}<div class='sub'>{p['cushion_pct']:.1f}% above the dip</div>{qty_html}" if p else '<span class="sub">too shallow to bid</span>'}</td>
+  <td class="num">{f"{gp(p['profit'])}<div class='sub'>{p['profit_pct']:.1f}% after tax</div>" if p else '-'}</td>
 </tr>"""
 
 
@@ -559,11 +563,11 @@ def build_report(results, cfg, now, toolbar=""):
     top, more = with_spikes[:cfg["max_shown"]], with_spikes[cfg["max_shown"]:]
     rows = "".join(row_html(r, cfg, now) for r in top)
     if more:
-        rows += (f'<tr class="more-toggle"><td colspan="8"><details><summary>+ {len(more)} more spiked '
+        rows += (f'<tr class="more-toggle"><td colspan="7"><details><summary>+ {len(more)} more spiked '
                  f'(weaker picks)</summary></details></td></tr>'
                  + "".join(row_html(r, cfg, now).replace("<tr>", '<tr class="more" hidden>', 1) for r in more))
     if not rows:
-        rows = ('<tr><td colspan="8" class="empty">No recent spikes on any item. '
+        rows = ('<tr><td colspan="7" class="empty">No recent spikes on any item. '
                 'Quiet market: check back later.</td></tr>')
     quiet_list = ", ".join(escape(r["item"]["name"]) for r in quiet)
 
@@ -614,11 +618,6 @@ th.num {{ text-align:right }}
 .spark .median {{ stroke:var(--muted); stroke-dasharray:2 3; opacity:.7 }}
 .spark .bid {{ stroke:var(--gold); stroke-dasharray:5 3 }}
 .spark circle {{ fill:var(--dip) }}
-.ladder {{ white-space:nowrap }}
-.rung {{ display:inline-block; font:11px var(--mono); padding:2px 5px; margin-right:3px; border-radius:3px;
-  border:1px solid var(--line); color:var(--muted) }}
-.rung b {{ color:var(--fg) }}
-.rung.on {{ border-color:var(--gold); color:var(--gold) }}
 .quiet {{ color:var(--muted); font-size:12.5px; margin-top:16px; max-width:120ch }}
 .quiet summary, .more-toggle summary {{ cursor:pointer; color:var(--muted); font-size:12.5px }}
 .more-toggle td {{ padding:8px 12px }}
@@ -642,11 +641,12 @@ item's {cfg['long_baseline_days']}-day average, lasting {cfg['spike_max_minutes'
 {cfg['spike_recover_minutes']} min. Slow price drifts and noise are ignored; items that normally jump around are marked <em>choppy</em> and ranked lower.
 Chart: <i style="background:var(--sell)"></i>instasell <i style="background:var(--buy)"></i>instabuy
 <i style="border-top:1px dashed var(--muted)"></i>normal price now <i style="border-top:2px dashed var(--gold)"></i>suggested bid,
-red dots are spikes. <b>Suggested bid</b> is the deepest standing offer that would have caught at least
-{cfg['spike_min_fills']} spike(s). Bids and profit use the lower of today's price and the {cfg['long_baseline_days']}-day average, after 2% tax.</p>
+red dots are spikes. <b>Suggested bid</b> sits about two-thirds of the way down the shallowest recent dip:
+above where other lowballers cluster (dumps fill the highest bids first), just above a round number, while keeping
+most of the gap. Bids and profit use the lower of today's price and the {cfg['long_baseline_days']}-day average, after 2% tax.</p>
 <div class="wrap"><table>
 <thead><tr><th>Item</th><th>Last 24h</th><th class="num">Normal now</th><th class="num">Spikes</th>
-<th class="num">Deepest</th><th class="num">Suggested bid</th><th class="num">Profit/ea</th><th>Bid ladder (spikes caught)</th></tr></thead>
+<th class="num">Deepest</th><th class="num">Suggested bid</th><th class="num">Profit/ea</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
 <details class="quiet"><summary>{len(quiet)} other item{"" if len(quiet) == 1 else "s"} had no spikes</summary><p>{quiet_list or 'none'}</p></details>
 <script>
@@ -998,7 +998,7 @@ def watch(cfg):
                     continue
                 alerted[sid] = ts
                 hits += 1
-                bid = round_bid(low * 1.01)
+                bid = price_bid(low * 1.03)
                 msg = (f"{it['name']} instasold at {low:,} ({pct:.1f}% under its "
                        f"last-hour average {int(base):,}), {ago(ts, now)}. "
                        f"Try a buy offer around {bid:,}. Limit {it.get('limit') or '?'}.")
