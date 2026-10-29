@@ -34,7 +34,7 @@ moves with the market and with your stack:
 - **Priced from 5% to about 29% of your stack.** At 15m: about 750k to 4.3m.
 - **25+ trades a day**, top 80 by daily gp traded.
 - Items in your `watchlist.txt` are always scanned too, on top of these.
-- Each suggested bid shows **how many to buy** with one offer (up to ~29% of your stack, capped at the GE limit).
+- One item per offer: buying more of the same item just competes with your own resale.
 
 Leave the cash stack empty to scan only your `watchlist.txt`.
 
@@ -43,7 +43,7 @@ just means a quiet market.
 
 - **Normal now**: what it sells for today, with its 7-day average below.
 - **Deepest**: the biggest dump in the last day.
-- **Suggested bid**: where to leave your buy offer, and how many to buy.
+- **Suggested bid**: where to leave your buy offer for one.
 - **Est. profit/day**: what that bid would have made in the last 24h.
 - Tags: **New** (wasn't on the list last time you looked) and **Choppy price** (jumps around a lot, ranked lower).
 

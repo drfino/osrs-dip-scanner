@@ -371,7 +371,7 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     # For every depth from the profit floor to 30% under the normal price, replay the day's
     # short, recovered dumps: a dump only fills you if it went beat_by_pct further down than
     # your bid (dumps fill the highest bids first, and other lowballers sit near the bottom),
-    # and you get at most the units dumped in that window, up to what one offer buys.
+    # and you buy one item per offer (buying more just competes with your own resale).
     dumps = spikes
     pick = None
     budget = offer_budget(cfg)
@@ -379,14 +379,11 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     while depth <= 30 and dumps:
         bid = price_bid(ref * (1 - depth / 100))
         profit = sell_after_tax(ref) - bid
-        qty = offer_qty(cfg, bid, item.get("limit")) if budget else 1
-        qty = max(qty or 0, 1)
         hit = [e for e in dumps if e["low"] <= bid * (1 - beat / 100)]
-        units = sum(min(qty, max(1, e["vol"])) for e in hit)
-        ev = units * profit
+        ev = len(hit) * profit           # one item per offer: each dump that reaches you is one flip
         if hit and profit > 0 and (pick is None or ev > pick["ev_day"]):
             pick = {"bid": bid, "profit": profit, "profit_pct": profit / bid * 100, "depth": depth,
-                    "fills": len(hit), "units": units, "ev_day": ev}
+                    "fills": len(hit), "ev_day": ev}
         depth += 0.5
     score = (pick["ev_day"] if pick else 0) * (0.3 if choppy else 1)
     if pick and budget and pick["bid"] > budget:
@@ -474,14 +471,6 @@ def sparkline(r, w=260, h=56):
             f'{bid_line}{line("avgHighPrice", "hi")}{line("avgLowPrice", "lo")}{dots}</svg>')
 
 
-def offer_qty(cfg, bid, limit):
-    budget = offer_budget(cfg)
-    if not budget or not bid:
-        return None
-    q = int(budget // bid)
-    return min(q, limit) if limit else q
-
-
 def icon_html(it):
     """The item's inventory icon from the OSRS Wiki (the mapping gives its file name)."""
     icon = it.get("icon")
@@ -493,23 +482,20 @@ def icon_html(it):
 
 def row_html(r, cfg, now):
     it, d, p = r["item"], r["deepest"], r["pick"]
-    qty = offer_qty(cfg, p["bid"], it.get("limit")) if p else None
-    qty_html = ""
-    if qty is not None:
-        qty_html = (f"<div class='sub'>× {qty} = {gp(qty * p['bid'])}</div>" if qty > 0
-                    else "<div class='sub over'>over one offer's budget</div>")
+    budget = offer_budget(cfg)
+    qty_html = "<div class='sub over'>over one offer's budget</div>" if p and budget and p["bid"] > budget else ""
     live = ""
     if r["choppy"]:
         live = f'<span class="chip warn" title="Normally moves about {r['noise']:.1f}% every 5 min">Choppy price</span>'
     return f"""
 <tr data-id="{it['id']}">
   <td class="name"><div class="namewrap">{icon_html(it)}<div><a href="{ITEM_PAGE.format(it['id'])}" target="_blank" rel="noopener">{escape(it['name'])}</a>
-      <div class="sub">limit {it.get('limit') or '-'}</div>{live}</div></div></td>
+      {f"<div>{live}</div>" if live else ""}</div></div></td>
   <td>{sparkline(r)}</td>
   <td class="num">{gp(r['base'])}{f"<div class='sub'>7d avg {gp(r['long_base'])}</div>" if r.get('long_base') else ''}</td>
   <td class="num">{f"-{d['pct']:.1f}%<div class='sub'>{gp(d['low'])} · {ago(d['ts'], now)}</div>" if d else '<span class="sub">none</span>'}</td>
   <td class="num bidcell">{f"{p['bid']:,}<div class='sub'>{p['depth']:.1f}% under normal</div>{qty_html}" if p else '<span class="sub">too shallow to bid</span>'}</td>
-  <td class="num evcell">{f"{gp(p['ev_day'])}<div class='sub'>{gp(p['profit'])} each ({p['profit_pct']:.1f}%)</div><div class='sub'>would have filled {p['fills']}× today</div>" if p else '-'}</td>
+  <td class="num evcell">{f"{gp(p['ev_day'])}<div class='sub'>{gp(p['profit'])} per flip ({p['profit_pct']:.1f}%)</div><div class='sub'>would have filled {p['fills']}× today</div>" if p else '-'}</td>
 </tr>"""
 
 
@@ -597,7 +583,7 @@ th.num {{ text-align:right }}
 {toolbar}
 <div class="legend">
 <p>These items were recently <b>dumped</b> far below their normal price, best money-makers first.
-Leave a buy offer at the <b>Suggested bid</b> for the quantity shown; it fills when the next dump hits.
+Leave a buy offer for one at the <b>Suggested bid</b>; it fills when the next dump hits.
 Once it fills, sell at around <b>Normal now</b>. Check back daily, and move any offer that hasn't filled in a day or two.</p>
 <p>Chart: <i style="background:var(--sell)"></i>instasell <i style="background:var(--buy)"></i>instabuy
 <i style="border-top:1px dashed var(--muted)"></i>normal price <i style="border-top:2px dashed var(--gold)"></i>your bid, red dots are dumps.</p>
