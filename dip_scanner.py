@@ -55,9 +55,6 @@ DEFAULT_CONFIG = {
     "long_baseline_days": 7,
     "spike_max_age_hours": 12,
     "choppy_noise_pct": 3,
-    "falling_week_pct": 6,     # down this much over the week AND still sliding today = falling knife, skipped
-    "falling_day_pct": 5,      # or down this much in one day = skipped
-    "drifting_week_pct": 3,    # down this much over the week = shown, but marked and ranked lower
     "spike_max_minutes": 30,
     "spike_recover_minutes": 60,
     "beat_by_pct": 3,          # a past dump only counts as filling your bid if it went this much further down
@@ -351,31 +348,6 @@ def long_run_price(hourly, cfg, now):
     return statistics.median(lows) if len(lows) >= 24 else None
 
 
-def price_trend(hourly, now):
-    """
-    How the price has moved, from 1-hour instasell averages:
-    week = last 24h vs 6-8 days ago, day = last 6h vs 18-30h ago (percent, negative = falling).
-    """
-    def med(a, b):
-        v = [p["avgLowPrice"] for p in hourly if now - b * 3600 <= p["timestamp"] < now - a * 3600
-             and p.get("avgLowPrice")]
-        return statistics.median(v) if len(v) >= 3 else None
-    def change(new, old):
-        return (new - old) / old * 100 if new and old else None
-    return change(med(0, 24), med(144, 192)), change(med(0, 6), med(18, 30))
-
-
-def trend_verdict(week, day, cfg):
-    """'falling' (skip it: a dip on a downturn isn't a dip), 'drifting' (mark it), or None."""
-    if day is not None and day <= -cfg["falling_day_pct"]:
-        return "falling"
-    if week is not None and week <= -cfg["falling_week_pct"] and (day is None or day <= -1):
-        return "falling"
-    if week is not None and week <= -cfg["drifting_week_pct"]:
-        return "drifting"
-    return None
-
-
 def analyze(item, recent, latest, cfg, now, hourly=()):
     pts = [p for p in recent if p["timestamp"] >= now - 86400]
     lows = [p["avgLowPrice"] for p in pts if p.get("avgLowPrice")]
@@ -427,10 +399,7 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
             pick = {"bid": bid, "profit": profit, "profit_pct": profit / bid * 100, "depth": depth,
                     "fills": len(hit), "units": units, "ev_day": ev}
         depth += 0.5
-    # A dip on a downturn isn't a dip: the "normal" price you'd resell at keeps sliding away.
-    week, day = price_trend(hourly, now)
-    trend = trend_verdict(week, day, cfg)
-    score = (pick["ev_day"] if pick else 0) * (0.3 if choppy else 1) * (0.5 if trend == "drifting" else 1)
+    score = (pick["ev_day"] if pick else 0) * (0.3 if choppy else 1)
     if pick and budget and pick["bid"] > budget:
         score *= 0.1                         # can't afford it in one offer: list it, but below the rest
 
@@ -442,9 +411,7 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     # Worth showing: a profitable bid exists, and the item dumped recently (not just a stale day-old dip).
     recent_dump = any(now - e["ts"] <= cfg["spike_max_age_hours"] * 3600 for e in spikes)
     return {
-        "listable": bool(pick) and recent_dump and trend != "falling",
-        "falling": bool(pick) and recent_dump and trend == "falling",
-        "trend": trend, "week_pct": week, "day_pct": day,
+        "listable": bool(pick) and recent_dump,
         "item": item, "base": normal, "long_base": long_base, "ref": ref, "stale": stale,
         "spikes": spikes, "rejected": rejected, "deepest": deepest,
         "pick": pick, "score": score, "now_low": now_low, "now_low_ts": now_low_ts,
@@ -582,8 +549,6 @@ def row_html(r, cfg, now):
         live = f'<span class="chip live">Dumping now -{r["now_pct"]:.1f}%</span>'
     elif d and d.get("ongoing"):
         live = '<span class="chip warn">Recent, not recovered yet</span>'
-    if r.get("trend") == "drifting":
-        live += f' <span class="chip warn" title="Instasell price is down {-r["week_pct"]:.1f}% over the last week">Drifting down</span>'
     if r["choppy"]:
         live += f' <span class="chip warn" title="Normally moves about {r['noise']:.1f}% every 5 min">Choppy price</span>'
     return f"""
@@ -618,8 +583,7 @@ def watch_text(cfg, n):
 
 def build_report(results, cfg, now, toolbar=""):
     with_spikes = [r for r in results if r["listable"]]
-    quiet = [r for r in results if not r["listable"] and not r.get("falling")]
-    falling = [r for r in results if r.get("falling")]
+    quiet = [r for r in results if not r["listable"]]
     top, more = with_spikes[:cfg["max_shown"]], with_spikes[cfg["max_shown"]:]
     rows = "".join(row_html(r, cfg, now) for r in top)
     if more:
@@ -630,11 +594,6 @@ def build_report(results, cfg, now, toolbar=""):
         rows = ('<tr><td colspan="7" class="empty">Nothing worth a bid right now. '
                 'Quiet market: check back later.</td></tr>')
     quiet_list = ", ".join(escape(r["item"]["name"]) for r in quiet)
-    def fall_txt(r):
-        bits = [f"{x:+.0f}% {lbl}" for x, lbl in ((r["week_pct"], "this week"), (r["day_pct"], "today")) if x is not None]
-        return f'{escape(r["item"]["name"])} ({", ".join(bits)})'
-    falling_html = (f'<details class="quiet"><summary>{len(falling)} skipped: dipped, but the price is falling</summary>'
-                    f'<p>{", ".join(fall_txt(r) for r in falling)}</p></details>') if falling else ""
 
     html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -715,9 +674,7 @@ Once it fills, sell at around <b>Normal now</b>. Check back daily, and move any 
 <details><summary>How it picks</summary>
 <p>A <b>dump</b> is a short drop (under {cfg['spike_max_minutes']} min) to at least {cfg['min_profit_pct'] + cfg['beat_by_pct'] + 2:g}% below
 both today's price and the {cfg['long_baseline_days']}-day average, that bounces back within {cfg['spike_recover_minutes']} min.
-Slow price drops don't count. Items only show if they dumped in the last {cfg['spike_max_age_hours']}h.
-Items whose price is <b>falling</b> (down {cfg['falling_week_pct']}%+ this week and still sliding, or {cfg['falling_day_pct']}%+ in a day) are skipped, since
-the price you'd resell at keeps dropping; items down {cfg['drifting_week_pct']}%+ this week are marked <i>Drifting down</i> and ranked lower.</p>
+Slow price drops don't count. Items only show if they dumped in the last {cfg['spike_max_age_hours']}h.</p>
 <p>The <b>suggested bid</b> is whichever bid would have made the most gp over the last 24h. A dump only counts as a fill if it
 went {cfg['beat_by_pct']}% below your bid, because other lowballers sit just above the bottom and dumps fill the highest bids first.
 <b>Est. profit/day</b> is what that bid would have made, after 2% tax, and is what the list is sorted by.
@@ -728,7 +685,6 @@ Choppy items (prices that jump around a lot) are ranked lower.</p>
 <thead><tr><th>Item</th><th>Last 24h</th><th class="num">Normal now</th><th class="num">Dumps (24h)</th>
 <th class="num">Deepest</th><th class="num">Suggested bid</th><th class="num">Est. profit/day</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
-{falling_html}
 <details class="quiet"><summary>{len(quiet)} other item{"" if len(quiet) == 1 else "s"} not worth a bid right now</summary><p>{quiet_list or 'none'}</p></details>
 <script>
 // Mark items that weren't on the list the last time you looked at this page.
