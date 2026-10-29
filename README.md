@@ -51,7 +51,7 @@ just means a quiet market.
 
 A **dip** is a 5-minute instasell at least 9% below both the price around it and the 7-day average,
 lasting 30 minutes or less and bouncing back within an hour. Slow price drops don't count, and an item
-only shows if it dipped in the last 12 hours.
+only shows if it dipped in the last 18 hours.
 
 The **suggested bid** is whichever bid would have made the most gp over the last 24 hours. A dip only
 counts as filling you if it went 3% below your bid, because sellers fill the highest bids first and other

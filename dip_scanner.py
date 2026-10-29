@@ -46,7 +46,7 @@ DEFAULT_CONFIG = {
     "contact": "personal GE dip scanner, Discord: derf01",
     "local_window_minutes": 90,
     "long_baseline_days": 7,
-    "spike_max_age_hours": 12,
+    "spike_max_age_hours": 18,
     "choppy_noise_pct": 3,
     "spike_max_minutes": 30,
     "spike_recover_minutes": 60,
