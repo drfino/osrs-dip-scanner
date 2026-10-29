@@ -43,6 +43,7 @@ What the page shows:
 - **The best 8 items worth a bid right now**, ranked by **est. profit/day**: enough to fill your GE
   slots with a few spares. Items that aren't worth a bid fold into one line at the bottom.
   A short list just means a quiet market.
+- **New**: a green tag on items that weren't on the list the last time you looked (or not in the last day).
 - **Normal now**: what the item sells for today (median of the last 3 hours), with its 7-day average below.
 - **Dumps (24h)**: how many qualifying dumps in the last 24h. Red dots on the chart.
 - **Deepest**: the lowest dump, how far under normal, and how long ago.

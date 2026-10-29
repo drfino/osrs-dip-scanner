@@ -552,7 +552,7 @@ def row_html(r, cfg, now):
     if r["choppy"]:
         live += f' <span class="chip warn" title="Normally moves about {r['noise']:.1f}% every 5 min">Choppy price</span>'
     return f"""
-<tr>
+<tr data-id="{it['id']}">
   <td class="name"><div class="namewrap">{icon_html(it)}<div><a href="{ITEM_PAGE.format(it['id'])}" target="_blank" rel="noopener">{escape(it['name'])}</a>
       <div class="sub">limit {it.get('limit') or '-'} · now sells {gp(r['now_low'])} {ago(r['now_low_ts'], now)}</div>{live}</div></div></td>
   <td>{sparkline(r)}</td>
@@ -589,7 +589,7 @@ def build_report(results, cfg, now, toolbar=""):
     if more:
         rows += (f'<tr class="more-toggle"><td colspan="7"><details><summary>+ {len(more)} more worth a bid '
                  f'(weaker picks)</summary></details></td></tr>'
-                 + "".join(row_html(r, cfg, now).replace("<tr>", '<tr class="more" hidden>', 1) for r in more))
+                 + "".join(row_html(r, cfg, now).replace("<tr data-id", '<tr class="more" hidden data-id', 1) for r in more))
     if not rows:
         rows = ('<tr><td colspan="7" class="empty">Nothing worth a bid right now. '
                 'Quiet market: check back later.</td></tr>')
@@ -640,6 +640,7 @@ th.num {{ text-align:right }}
 .chip {{ display:inline-block; margin-top:4px; padding:1px 7px; border-radius:99px; font-size:11px; font-weight:600 }}
 .chip.live {{ background:var(--dip); color:#fff }}
 .chip.warn {{ border:1px solid var(--warn); color:var(--warn) }}
+.chip.new {{ background:var(--buy); color:#0b1a10; margin-right:4px }}
 .spark {{ display:block; overflow:visible }}
 .spark polyline {{ fill:none; stroke-width:1.3; stroke-linejoin:round }}
 .spark .hi {{ stroke:var(--buy); opacity:.5 }}
@@ -686,6 +687,31 @@ Choppy items (prices that jump around a lot) are ranked lower.</p>
 <tbody>{rows}</tbody></table></div>
 <details class="quiet"><summary>{len(quiet)} other item{"" if len(quiet) == 1 else "s"} not worth a bid right now</summary><p>{quiet_list or 'none'}</p></details>
 <script>
+// Mark items that weren't on the list the last time you looked at this page.
+(function () {{
+  const KEY = 'dipScannerSeen', DAY = 864e5;
+  let seen = {{}};
+  try {{ seen = JSON.parse(localStorage.getItem(KEY)) || {{}}; }} catch (e) {{}}
+  const rows = document.querySelectorAll('tbody tr[data-id]');
+  function mark() {{
+    const now = Date.now();
+    rows.forEach(function (r) {{
+      const id = r.dataset.id;
+      if (!(seen[id] && now - seen[id] < DAY)) {{
+        const a = r.querySelector('.name a');
+        if (a) a.insertAdjacentHTML('beforebegin', '<span class="chip new">New</span>');
+      }}
+      seen[id] = now;
+    }});
+    for (const id in seen) if (now - seen[id] > 3 * DAY) delete seen[id];
+    try {{ localStorage.setItem(KEY, JSON.stringify(seen)); }} catch (e) {{}}
+  }}
+  // Only count an item as seen once the page is actually on screen.
+  if (document.visibilityState === 'visible') mark();
+  else document.addEventListener('visibilitychange', function once() {{
+    if (document.visibilityState === 'visible') {{ document.removeEventListener('visibilitychange', once); mark(); }}
+  }});
+}})();
 document.querySelectorAll('.more-toggle details').forEach(function (d) {{
   d.addEventListener('toggle', function () {{
     document.querySelectorAll('tr.more').forEach(function (r) {{ r.hidden = !d.open; }});
