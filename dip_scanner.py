@@ -533,7 +533,7 @@ def icon_html(it):
     if not icon:
         return '<span class="icon"></span>'
     src = "https://oldschool.runescape.wiki/images/" + urllib.parse.quote(icon.replace(" ", "_"))
-    return f'<img class="icon" src="{escape(src)}" alt="" loading="lazy">'
+    return f'<img class="icon" src="{escape(src)}" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">'
 
 
 def row_html(r, cfg, now):
@@ -616,6 +616,10 @@ header {{ display:flex; flex-wrap:wrap; gap:8px 24px; align-items:baseline; marg
 h1 {{ font-weight:800; font-size:26px; margin:0; letter-spacing:-.01em }}
 .meta {{ color:var(--muted); font-size:13px }}
 .legend {{ color:var(--muted); font-size:12.5px; margin:10px 0 18px; max-width:92ch }}
+.legend ol {{ margin:0 0 6px; padding-left:20px; color:var(--fg) }}
+.legend li {{ margin:2px 0 }}
+.legend p {{ margin:6px 0 }}
+.legend summary {{ cursor:pointer }}
 .legend i {{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin:0 4px 0 10px }}
 .wrap {{ overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:6px }}
 table {{ border-collapse:collapse; width:100%; min-width:1050px }}
@@ -662,17 +666,25 @@ th.num {{ text-align:right }}
 <header><h1>GE Dip Scanner</h1>
 <span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} worth a bid{f", best {len(top)} shown" if more else ""}</span></header>
 {toolbar}
-<p class="legend">A <b>dump</b> is a 5-minute instasell deep enough that a bid {cfg['beat_by_pct']}% above it still makes
-{cfg['min_profit_pct']}%+ profit after tax ({cfg['min_profit_pct'] + cfg['beat_by_pct'] + 2:g}%+ under <b>both</b> the price around it and the
-{cfg['long_baseline_days']}-day average), lasting {cfg['spike_max_minutes']} min or less and bouncing back within {cfg['spike_recover_minutes']} min.
-Items are listed if they dumped in the last {cfg['spike_max_age_hours']}h; choppy items are ranked lower.
-Chart: <i style="background:var(--sell)"></i>instasell <i style="background:var(--buy)"></i>instabuy
-<i style="border-top:1px dashed var(--muted)"></i>normal price now <i style="border-top:2px dashed var(--gold)"></i>suggested bid,
-red dots are dumps. <b>Suggested bid</b> is the bid that would have made the most profit over the last 24h:
-every depth from {cfg['min_profit_pct']}% profit up to 30% under is replayed against the day's dumps, counting a dump only if it
-went {cfg['beat_by_pct']}% past your bid (dumps fill the highest bids first) and only up to the units dumped.
-<b>Est. profit/day</b> is what that bid would have made in the last 24h, and is what the list is ranked by.
-Prices use the lower of today's price and the {cfg['long_baseline_days']}-day average, after 2% tax.</p>
+<div class="legend">
+<ol>
+<li>These items had someone dump them far below their normal price recently. Best money-makers are at the top.</li>
+<li>Put a buy offer in at the <b>Suggested bid</b>, for the quantity shown. Leave it there; it fills when the next dump hits.</li>
+<li>When it fills, sell at about the <b>Normal now</b> price.</li>
+<li>Check back daily. If an item drops off the list or its offer hasn't filled in a day or two, move that slot to something new.</li>
+</ol>
+<p>Chart: <i style="background:var(--sell)"></i>instasell <i style="background:var(--buy)"></i>instabuy
+<i style="border-top:1px dashed var(--muted)"></i>normal price <i style="border-top:2px dashed var(--gold)"></i>your bid, red dots are dumps.</p>
+<details><summary>How it picks</summary>
+<p>A <b>dump</b> is a short drop (under {cfg['spike_max_minutes']} min) to at least {cfg['min_profit_pct'] + cfg['beat_by_pct'] + 2:g}% below
+both today's price and the {cfg['long_baseline_days']}-day average, that bounces back within {cfg['spike_recover_minutes']} min.
+Slow price drops don't count. Items only show if they dumped in the last {cfg['spike_max_age_hours']}h.</p>
+<p>The <b>suggested bid</b> is whichever bid would have made the most gp over the last 24h. A dump only counts as a fill if it
+went {cfg['beat_by_pct']}% below your bid, because other lowballers sit just above the bottom and dumps fill the highest bids first.
+<b>Est. profit/day</b> is what that bid would have made, after 2% tax, and is what the list is sorted by.
+Choppy items (prices that jump around a lot) are ranked lower.</p>
+</details>
+</div>
 <div class="wrap"><table>
 <thead><tr><th>Item</th><th>Last 24h</th><th class="num">Normal now</th><th class="num">Dumps (24h)</th>
 <th class="num">Deepest</th><th class="num">Suggested bid</th><th class="num">Est. profit/day</th></tr></thead>
