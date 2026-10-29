@@ -527,6 +527,15 @@ def offer_qty(cfg, bid, limit):
     return min(q, limit) if limit else q
 
 
+def icon_html(it):
+    """The item's inventory icon from the OSRS Wiki (the mapping gives its file name)."""
+    icon = it.get("icon")
+    if not icon:
+        return '<span class="icon"></span>'
+    src = "https://oldschool.runescape.wiki/images/" + urllib.parse.quote(icon.replace(" ", "_"))
+    return f'<img class="icon" src="{escape(src)}" alt="" loading="lazy">'
+
+
 def row_html(r, cfg, now):
     it, d, p = r["item"], r["deepest"], r["pick"]
     qty = offer_qty(cfg, p["bid"], it.get("limit")) if p else None
@@ -544,8 +553,8 @@ def row_html(r, cfg, now):
         live += f' <span class="chip warn" title="Normally moves about {r['noise']:.1f}% every 5 min">Choppy price</span>'
     return f"""
 <tr>
-  <td class="name"><a href="{ITEM_PAGE.format(it['id'])}" target="_blank" rel="noopener">{escape(it['name'])}</a>
-      <div class="sub">limit {it.get('limit') or '-'} · now sells {gp(r['now_low'])} {ago(r['now_low_ts'], now)}</div>{live}</td>
+  <td class="name"><div class="namewrap">{icon_html(it)}<div><a href="{ITEM_PAGE.format(it['id'])}" target="_blank" rel="noopener">{escape(it['name'])}</a>
+      <div class="sub">limit {it.get('limit') or '-'} · now sells {gp(r['now_low'])} {ago(r['now_low_ts'], now)}</div>{live}</div></div></td>
   <td>{sparkline(r)}</td>
   <td class="num">{gp(r['base'])}{f"<div class='sub'>7d avg {gp(r['long_base'])}</div>" if r.get('long_base') else ''}</td>
   <td class="num">{len(r['spikes'])}</td>
@@ -617,7 +626,9 @@ tr:last-child td {{ border-bottom:0 }}
 td.empty {{ color:var(--muted); padding:24px 12px }}
 .num {{ font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap }}
 th.num {{ text-align:right }}
-.name {{ min-width:210px }}
+.name {{ min-width:230px }}
+.namewrap {{ display:flex; align-items:center; gap:10px }}
+.icon {{ width:36px; height:32px; object-fit:contain; flex:none; image-rendering:pixelated }}
 .name a {{ color:var(--fg); font-weight:600; text-decoration:none }}
 .name a:hover {{ text-decoration:underline }}
 .sub {{ color:var(--muted); font-size:11.5px; font-family:var(--mono) }}
