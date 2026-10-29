@@ -50,6 +50,9 @@ What the page shows:
 - **Suggested bid**: where to leave your offer, how far under normal it is, and how many to buy.
 - **Est. profit/day**: what that bid would have made over the last 24h, profit each, and how many
   times it would have filled.
+- **Drifting down**: the price is a few % lower than a week ago, so it's ranked lower. Items whose price is
+  really falling (like a crash after an update) are skipped and listed at the bottom instead: a dip on a
+  downturn isn't a dip.
 - **Choppy price**: this item normally jumps around a lot, so it's ranked lower.
 
 ## What counts as a dump
@@ -103,6 +106,9 @@ e.g. `{"spike_max_minutes": 20}`); it's yours and updates never touch it.
 | `spike_max_minutes` | 30 | Longer than this = a price drop, not a dump |
 | `spike_recover_minutes` | 60 | Must bounce back within this |
 | `local_window_minutes` | 90 | How much surrounding price defines "normal" |
+| `falling_week_pct` | 6 | Down this much over the week and still sliding today = skipped as falling. |
+| `falling_day_pct` | 5 | Down this much in one day = skipped as falling. |
+| `drifting_week_pct` | 3 | Down this much over the week = shown but marked *Drifting down* and ranked lower. |
 | `choppy_noise_pct` | 3 | Items that normally move more than this every 5 min are marked choppy |
 
 Edit `watchlist.txt` to add or remove items (names exactly as on the prices site). It's created
