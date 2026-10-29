@@ -38,82 +38,41 @@ moves with the market and with your stack:
 
 Leave the cash stack empty to scan only your `watchlist.txt`.
 
-What the page shows:
+What the page shows: the **best 8 items worth a bid**, ranked by estimated profit per day. A short list
+just means a quiet market.
 
-- **The best 8 items worth a bid right now**, ranked by **est. profit/day**: enough to fill your GE
-  slots with a few spares. Items that aren't worth a bid fold into one line at the bottom.
-  A short list just means a quiet market.
-- **New**: a green tag on items that weren't on the list the last time you looked (or not in the last day).
-- **Normal now**: what the item sells for today (median of the last 3 hours), with its 7-day average below.
-- **Dumps (24h)**: how many qualifying dumps in the last 24h. Red dots on the chart.
-- **Deepest**: the lowest dump, how far under normal, and how long ago.
-- **Suggested bid**: where to leave your offer, how far under normal it is, and how many to buy.
-- **Est. profit/day**: what that bid would have made over the last 24h, profit each, and how many
-  times it would have filled.
-- **Choppy price**: this item normally jumps around a lot, so it's ranked lower.
+- **Normal now**: what it sells for today, with its 7-day average below.
+- **Deepest**: the biggest dump in the last day.
+- **Suggested bid**: where to leave your buy offer, and how many to buy.
+- **Est. profit/day**: what that bid would have made in the last 24h.
+- Tags: **New** (wasn't on the list last time you looked) and **Choppy price** (jumps around a lot, ranked lower).
 
-## What counts as a dump
+## How it works
 
-A 5-minute instasell that is:
-- **deep enough to profit from**: 9%+ below BOTH the price around it (median of the 90 minutes
-  before and after) **and** the item's 7-day average. 9% = a bid 3% above it still clears 4% profit
-  after the 2% tax. Whichever price is lower is the bar, so:
-  - an item drifting down all day is judged against today's lower price, and
-  - an item that has risen isn't credited for a dip that only fell back to last week's price.
-- **short**: 30 minutes or less,
-- **bounces back** within an hour. A price that drops and stays down is a crash, not a dump.
+A **dump** is a 5-minute instasell at least 9% below both the price around it and the 7-day average,
+lasting 30 minutes or less and bouncing back within an hour. Slow price drops don't count, and an item
+only shows if it dumped in the last 12 hours.
 
-An item is listed only if it dumped **in the last 12 hours** (dead items drop off), but the bid uses
-the whole last 24 hours as evidence.
+The **suggested bid** is whichever bid would have made the most gp over the last 24 hours. A dump only
+counts as filling you if it went 3% below your bid, because dumps fill the highest bids first and other
+lowballers sit just above the bottom. Bids land just above round numbers (1,004,111, not 1,000,000).
 
-## How the suggested bid works
-
-The goal is the most profit per day, not the deepest discount. A bid that catches one huge dump a
-week loses to one that fills on every ordinary dump.
-
-So the scanner replays the last 24 hours. For every bid from 4% profit up to 30% under normal, it asks:
-- **Would it have filled?** Dumps fill the highest bids first, and other lowballers sit just above the
-  bottom. A dump only counts if it went **3% past your bid**, so you'd have been ahead of that pack.
-- **How many?** Your offer size, or the units that dump actually sold, whichever is smaller.
-- **For how much?** Normal price after tax, minus your bid.
-
-The bid that would have made the most is the suggestion, landed **just above a round number**
-(1,004,111 rather than 1,000,000), since that's where other offers cluster. Items are ranked by that
-estimated profit/day, so a reliable −9% dumper can outrank a one-off −20% crash.
-
-It's an estimate from one day. Re-check daily and move offers that stopped filling.
+It's an estimate from one day: check back daily and move offers that stopped filling.
 
 ## Tuning
 
-The page covers the cash stack. Anything else goes in `config.json` (create it if it doesn't exist,
-e.g. `{"spike_max_minutes": 20}`); it's yours and updates never touch it.
+The page covers the cash stack. For anything else, create `config.json` next to the scanner, e.g.
+`{"max_shown": 10}`. Updates never touch it.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `spike_max_age_hours` | 12 | Only items that dumped this recently are listed. |
-| `long_baseline_days` | 7 | The long-run average a dip must also be below. |
-| `cash_stack` | 0 | Set on the page. |
-| `min_item_pct` | 5 | Cheapest item to watch, as % of your stack. |
-| `max_offer_pct` | 29 | Most one offer may use and priciest item to watch, as % of your stack. |
-| `min_daily_volume` | 25 | Trades per day an item needs to be auto-picked. |
-| `max_auto_items` | 80 | Most items to auto-pick (more = slower scans). |
 | `max_shown` | 8 | How many items to show. |
 | `beat_by_pct` | 3 | How far a dump must go past your bid to count as a fill. Higher = safer bids, less profit. |
-| `min_profit_pct` | 4 | Never suggest a bid with less profit than this, after tax. Also sets how deep a dump must be. |
-| `spike_max_minutes` | 30 | Longer than this = a price drop, not a dump |
-| `spike_recover_minutes` | 60 | Must bounce back within this |
-| `local_window_minutes` | 90 | How much surrounding price defines "normal" |
-| `choppy_noise_pct` | 3 | Items that normally move more than this every 5 min are marked choppy |
+| `min_profit_pct` | 4 | Least profit to suggest, after tax. |
+| `min_daily_volume` | 25 | Trades per day an item needs to be picked. |
+| `min_item_pct` / `max_offer_pct` | 5 / 29 | Cheapest and priciest items to watch, as % of your stack. |
 
-Edit `watchlist.txt` to add or remove items (names exactly as on the prices site). It's created
-from `watchlist.example.txt` the first time you run the scanner.
-
-## Phone alerts (optional)
-
-**Watch for dips.bat** checks every 3 minutes while your PC is on and pushes to your phone
-(free **ntfy** app) when an item instasells 15%+ under its last-hour average. Set
-`ntfy_topic` in `config.json` to a long random name, subscribe to the same name in the app,
-then run **Test phone alert.bat**.
+Edit `watchlist.txt` to always include specific items (names exactly as on the prices site).
 
 ## Data
 

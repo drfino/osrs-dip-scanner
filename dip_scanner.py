@@ -2,15 +2,8 @@
 """
 OSRS GE Dip Scanner: finds instasell dumps worth bidding on.
 
-  python dip_scanner.py serve   Easiest: opens a local page (http://localhost:8765) with a Scan button,
-                                a cash stack box and auto-refresh. "GE Dip Scanner.bat" runs this.
-  python dip_scanner.py scan    One-click audit: finds deep, short instasell dumps in the last
-                                24h, suggests a lowball bid per item, and opens an HTML report
-                                with a chart for every item.
-  python dip_scanner.py watch   Leaves a loop running. Every few minutes it checks the latest
-                                instasell price of every watched item and pushes a phone
-                                notification (ntfy app) when one dumps far below its last-hour price.
-  python dip_scanner.py test-alert   Sends one test notification to your phone.
+Double-click "GE Dip Scanner.bat" (or run: python dip_scanner.py). It opens a local page
+(http://localhost:8765) with a Scan button and a cash stack box, and rescans every 10 minutes.
 
 A "dump" is a short, sharp drop that bounces back, measured against the price AROUND it
 (the median instasell of the surrounding 90 minutes), so slow drifts and noise don't count:
@@ -59,17 +52,13 @@ DEFAULT_CONFIG = {
     "spike_recover_minutes": 60,
     "beat_by_pct": 3,          # a past dump only counts as filling your bid if it went this much further down
     "min_profit_pct": 4,       # never suggest a bid that leaves less than this after tax
-    "watch_every_minutes": 3,
-    "alert_spike_pct": 15,
-    "alert_max_age_minutes": 10,
-    "ntfy_topic": "",
     # Auto watchlist from your cash stack (0 = only use watchlist.txt).
     "cash_stack": 0,
     "min_item_pct": 5,         # cheapest item to watch, as % of your stack
     "max_offer_pct": 29,       # most one offer may use, as % of your stack (also the priciest item)
     "min_daily_volume": 25,    # trades per day, so offers can actually fill
     "max_auto_items": 80,
-    "max_shown": 8,            # show the best N items; the rest fold away      # keep scans quick: top items by daily gp traded
+    "max_shown": 8,            # show the best N items
 }
 
 
@@ -450,40 +439,6 @@ def run_scan(cfg, progress=None, cache=None):
     return results, now
 
 
-def scan(cfg, open_report=True):
-    def show(i, n, name):
-        print(f"\r  Checking {i}/{n}: {name[:40]:<40}", end="", flush=True)
-    results, now = run_scan(cfg, show)
-    print("\r" + " " * 70 + "\r", end="")
-    if not results:
-        print("Watchlist is empty.")
-        return
-    print_table(results, cfg, now)
-    path = write_report(results, cfg, now)
-    print(f"\nReport saved: {path}")
-    if open_report:
-        webbrowser.open("file://" + path)
-
-
-def print_table(results, cfg, now):
-    with_spikes = [r for r in results if r["listable"]]
-    print(f"\nItems worth a lowball bid, ranked by estimated profit per day (last 24h), "
-          f"that bounced back within {cfg['spike_recover_minutes']} min.\n")
-    if not with_spikes:
-        print("Nothing worth a bid right now. Quiet market: check back later.")
-        return
-    hdr = f"{'Item':<32}{'Normal now':>12}{'Dumps':>8}{'Deepest':>18}{'Suggested bid':>15}{'Under':>8}{'Profit/day':>12}"
-    print(hdr)
-    print("-" * len(hdr))
-    for r in with_spikes:
-        d, p = r["deepest"], r["pick"]
-        deep = f"-{d['pct']:.1f}% {ago(d['ts'], now)}"
-        name = r['item']['name'][:28] + (" (choppy)" if r["choppy"] else "")
-        print(f"{name[:31]:<32}{gp(r['base']):>12}{len(r['spikes']):>8}{deep:>18}"
-              f"{gp(p['bid']) if p else '-':>15}{(f"-{p['depth']:.1f}%" if p else '-'):>8}{gp(p['ev_day']) if p else '-':>12}")
-    print(f"\n{len(results) - len(with_spikes)} other items had no spikes.")
-
-
 # ----------------------------------------------------------------------------- HTML report
 
 def sparkline(r, w=260, h=56):
@@ -544,31 +499,18 @@ def row_html(r, cfg, now):
         qty_html = (f"<div class='sub'>× {qty} = {gp(qty * p['bid'])}</div>" if qty > 0
                     else "<div class='sub over'>over one offer's budget</div>")
     live = ""
-    if r["now_pct"] is not None and r["now_pct"] >= cfg["alert_spike_pct"] and \
-            now - (r["now_low_ts"] or 0) <= cfg["alert_max_age_minutes"] * 60:
-        live = f'<span class="chip live">Dumping now -{r["now_pct"]:.1f}%</span>'
-    elif d and d.get("ongoing"):
-        live = '<span class="chip warn">Recent, not recovered yet</span>'
     if r["choppy"]:
-        live += f' <span class="chip warn" title="Normally moves about {r['noise']:.1f}% every 5 min">Choppy price</span>'
+        live = f'<span class="chip warn" title="Normally moves about {r['noise']:.1f}% every 5 min">Choppy price</span>'
     return f"""
 <tr data-id="{it['id']}">
   <td class="name"><div class="namewrap">{icon_html(it)}<div><a href="{ITEM_PAGE.format(it['id'])}" target="_blank" rel="noopener">{escape(it['name'])}</a>
-      <div class="sub">limit {it.get('limit') or '-'} · now sells {gp(r['now_low'])} {ago(r['now_low_ts'], now)}</div>{live}</div></div></td>
+      <div class="sub">limit {it.get('limit') or '-'}</div>{live}</div></div></td>
   <td>{sparkline(r)}</td>
   <td class="num">{gp(r['base'])}{f"<div class='sub'>7d avg {gp(r['long_base'])}</div>" if r.get('long_base') else ''}</td>
-  <td class="num">{len(r['spikes'])}</td>
   <td class="num">{f"-{d['pct']:.1f}%<div class='sub'>{gp(d['low'])} · {ago(d['ts'], now)}</div>" if d else '<span class="sub">none</span>'}</td>
   <td class="num bidcell">{f"{p['bid']:,}<div class='sub'>{p['depth']:.1f}% under normal</div>{qty_html}" if p else '<span class="sub">too shallow to bid</span>'}</td>
   <td class="num evcell">{f"{gp(p['ev_day'])}<div class='sub'>{gp(p['profit'])} each ({p['profit_pct']:.1f}%)</div><div class='sub'>would have filled {p['fills']}× today</div>" if p else '-'}</td>
 </tr>"""
-
-
-def write_report(results, cfg, now):
-    path = os.path.join(HERE, "dip_report.html")
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(build_report(results, cfg, now))
-    return path
 
 
 def watch_text(cfg, n):
@@ -583,17 +525,11 @@ def watch_text(cfg, n):
 
 def build_report(results, cfg, now, toolbar=""):
     with_spikes = [r for r in results if r["listable"]]
-    quiet = [r for r in results if not r["listable"]]
-    top, more = with_spikes[:cfg["max_shown"]], with_spikes[cfg["max_shown"]:]
+    top = with_spikes[:cfg["max_shown"]]
     rows = "".join(row_html(r, cfg, now) for r in top)
-    if more:
-        rows += (f'<tr class="more-toggle"><td colspan="7"><details><summary>+ {len(more)} more worth a bid '
-                 f'(weaker picks)</summary></details></td></tr>'
-                 + "".join(row_html(r, cfg, now).replace("<tr data-id", '<tr class="more" hidden data-id', 1) for r in more))
     if not rows:
-        rows = ('<tr><td colspan="7" class="empty">Nothing worth a bid right now. '
+        rows = ('<tr><td colspan="6" class="empty">Nothing worth a bid right now. '
                 'Quiet market: check back later.</td></tr>')
-    quiet_list = ", ".join(escape(r["item"]["name"]) for r in quiet)
 
     html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -617,7 +553,6 @@ h1 {{ font-weight:800; font-size:26px; margin:0; letter-spacing:-.01em }}
 .meta {{ color:var(--muted); font-size:13px }}
 .legend {{ color:var(--muted); font-size:12.5px; margin:10px 0 18px; max-width:92ch }}
 .legend p {{ margin:6px 0 }}
-.legend summary {{ cursor:pointer }}
 .legend i {{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin:0 4px 0 10px }}
 .wrap {{ overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:6px }}
 table {{ border-collapse:collapse; width:100%; min-width:1050px }}
@@ -638,7 +573,6 @@ th.num {{ text-align:right }}
 .evcell {{ font-weight:600 }}
 .sub.over {{ color:var(--warn) }}
 .chip {{ display:inline-block; margin-top:4px; padding:1px 7px; border-radius:99px; font-size:11px; font-weight:600 }}
-.chip.live {{ background:var(--dip); color:#fff }}
 .chip.warn {{ border:1px solid var(--warn); color:var(--warn) }}
 .chip.new {{ background:var(--buy); color:#0b1a10; margin-right:4px }}
 .spark {{ display:block; overflow:visible }}
@@ -648,22 +582,18 @@ th.num {{ text-align:right }}
 .spark .median {{ stroke:var(--muted); stroke-dasharray:2 3; opacity:.7 }}
 .spark .bid {{ stroke:var(--gold); stroke-dasharray:5 3 }}
 .spark circle {{ fill:var(--dip) }}
-.quiet {{ color:var(--muted); font-size:12.5px; margin-top:16px; max-width:120ch }}
-.quiet summary, .more-toggle summary {{ cursor:pointer; color:var(--muted); font-size:12.5px }}
-.more-toggle td {{ padding:8px 12px }}
 .bar {{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; margin:14px 0 4px;
   padding:10px 12px; background:var(--panel); border:1px solid var(--line); border-radius:6px }}
 .bar button {{ font:600 14px var(--sans); padding:7px 16px; border-radius:5px; border:0; cursor:pointer;
   background:var(--gold); color:#1d1c19 }}
 .bar button:disabled {{ opacity:.55; cursor:default }}
 .bar label {{ display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px }}
-.bar input[type=range] {{ width:140px; accent-color:var(--gold) }}
 .bar .status {{ font:12.5px var(--mono); color:var(--muted) }}
 .bar .status.err {{ color:var(--dip) }}
 .bar progress {{ width:140px; accent-color:var(--gold) }}
 </style></head><body>
 <header><h1>GE Dip Scanner</h1>
-<span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} worth a bid{f", best {len(top)} shown" if more else ""}</span></header>
+<span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} worth a bid{f", best {len(top)} shown" if len(with_spikes) > len(top) else ""}</span></header>
 {toolbar}
 <div class="legend">
 <p>These items were recently <b>dumped</b> far below their normal price, best money-makers first.
@@ -671,21 +601,11 @@ Leave a buy offer at the <b>Suggested bid</b> for the quantity shown; it fills w
 Once it fills, sell at around <b>Normal now</b>. Check back daily, and move any offer that hasn't filled in a day or two.</p>
 <p>Chart: <i style="background:var(--sell)"></i>instasell <i style="background:var(--buy)"></i>instabuy
 <i style="border-top:1px dashed var(--muted)"></i>normal price <i style="border-top:2px dashed var(--gold)"></i>your bid, red dots are dumps.</p>
-<details><summary>How it picks</summary>
-<p>A <b>dump</b> is a short drop (under {cfg['spike_max_minutes']} min) to at least {cfg['min_profit_pct'] + cfg['beat_by_pct'] + 2:g}% below
-both today's price and the {cfg['long_baseline_days']}-day average, that bounces back within {cfg['spike_recover_minutes']} min.
-Slow price drops don't count. Items only show if they dumped in the last {cfg['spike_max_age_hours']}h.</p>
-<p>The <b>suggested bid</b> is whichever bid would have made the most gp over the last 24h. A dump only counts as a fill if it
-went {cfg['beat_by_pct']}% below your bid, because other lowballers sit just above the bottom and dumps fill the highest bids first.
-<b>Est. profit/day</b> is what that bid would have made, after 2% tax, and is what the list is sorted by.
-Choppy items (prices that jump around a lot) are ranked lower.</p>
-</details>
 </div>
 <div class="wrap"><table>
-<thead><tr><th>Item</th><th>Last 24h</th><th class="num">Normal now</th><th class="num">Dumps (24h)</th>
+<thead><tr><th>Item</th><th>Last 24h</th><th class="num">Normal now</th>
 <th class="num">Deepest</th><th class="num">Suggested bid</th><th class="num">Est. profit/day</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
-<details class="quiet"><summary>{len(quiet)} other item{"" if len(quiet) == 1 else "s"} not worth a bid right now</summary><p>{quiet_list or 'none'}</p></details>
 <script>
 // Mark items that weren't on the list the last time you looked at this page.
 (function () {{
@@ -712,11 +632,6 @@ Choppy items (prices that jump around a lot) are ranked lower.</p>
     if (document.visibilityState === 'visible') {{ document.removeEventListener('visibilitychange', once); mark(); }}
   }});
 }})();
-document.querySelectorAll('.more-toggle details').forEach(function (d) {{
-  d.addEventListener('toggle', function () {{
-    document.querySelectorAll('tr.more').forEach(function (r) {{ r.hidden = !d.open; }});
-  }});
-}});
 </script>
 </body></html>"""
     return html
@@ -1004,76 +919,6 @@ def serve(open_browser=True, update=True):
 
 # ----------------------------------------------------------------------------- watch mode
 
-def notify(cfg, title, body, click=None, priority="high"):
-    topic = cfg.get("ntfy_topic", "").strip()
-    if not topic:
-        return False
-    headers = {"Title": title.encode("ascii", "ignore").decode(), "Priority": priority, "Tags": "moneybag"}
-    if click:
-        headers["Click"] = click
-    req = urllib.request.Request(f"https://ntfy.sh/{topic}", data=body.encode("utf-8"), headers=headers)
-    try:
-        urllib.request.urlopen(req, timeout=15).read()
-        return True
-    except Exception as e:
-        print(f"  (push notification failed: {e})")
-        return False
-
-
-def watch(cfg):
-    items = load_watchlist(cfg)
-    ids = {str(m["id"]): m for m in items}
-    state_path = os.path.join(HERE, ".alert_state.json")
-    try:
-        with open(state_path, encoding="utf-8") as f:
-            alerted = json.load(f)
-    except Exception:
-        alerted = {}
-    every = max(1, float(cfg["watch_every_minutes"])) * 60
-    thr = cfg["alert_spike_pct"]
-    if not cfg.get("ntfy_topic"):
-        print("No ntfy_topic set in config.json, so alerts will only print here (no phone push).")
-    print(f"Watching {len(items)} items. Alert when an instasell lands {thr}%+ below its "
-          f"last-hour average. Checking every {cfg['watch_every_minutes']} min. Ctrl+C to stop.\n")
-
-    bases, bases_fetched = {}, 0
-    while True:
-        try:
-            now = time.time()
-            if now - bases_fetched > 600:  # last-hour average instasell, all items in one call
-                hour = fetch("1h", cfg)["data"]
-                bases = {sid: d["avgLowPrice"] for sid, d in hour.items() if d.get("avgLowPrice")}
-                bases_fetched = now
-            latest = fetch("latest", cfg)["data"]
-            hits = 0
-            for sid, it in ids.items():
-                lt, base = latest.get(sid, {}), bases.get(sid)
-                low, ts = lt.get("low"), lt.get("lowTime")
-                if not (low and ts and base) or now - ts > cfg["alert_max_age_minutes"] * 60:
-                    continue
-                pct = (base - low) / base * 100
-                if pct < thr or alerted.get(sid) == ts:
-                    continue
-                alerted[sid] = ts
-                hits += 1
-                bid = price_bid(low * 1.03)
-                msg = (f"{it['name']} instasold at {low:,} ({pct:.1f}% under its "
-                       f"last-hour average {int(base):,}), {ago(ts, now)}. "
-                       f"Try a buy offer around {bid:,}. Limit {it.get('limit') or '?'}.")
-                print(f"[{datetime.now():%H:%M}] DUMP  {msg}")
-                notify(cfg, f"{it['name']} -{pct:.0f}%", msg, ITEM_PAGE.format(it["id"]),
-                       priority="urgent" if pct >= thr * 1.5 else "high")
-            if not hits:
-                print(f"[{datetime.now():%H:%M}] no dumps", end="\r", flush=True)
-            with open(state_path, "w", encoding="utf-8") as f:
-                json.dump(alerted, f)
-        except KeyboardInterrupt:
-            raise
-        except Exception as e:
-            print(f"[{datetime.now():%H:%M}] check failed, will retry: {e}")
-        time.sleep(every)
-
-
 # ----------------------------------------------------------------------------- entry
 
 def main():
@@ -1082,13 +927,6 @@ def main():
     try:
         if mode == "serve":
             serve(open_browser="--no-open" not in sys.argv, update="--no-update" not in sys.argv)
-        elif mode == "scan":
-            scan(cfg, open_report="--no-open" not in sys.argv)
-        elif mode == "watch":
-            watch(cfg)
-        elif mode == "test-alert":
-            ok = notify(cfg, "GE Dip Scanner test", "Phone alerts are working.", priority="default")
-            print("Sent. Check your phone." if ok else "Not sent: set ntfy_topic in config.json first.")
         else:
             print(__doc__)
     except KeyboardInterrupt:

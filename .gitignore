@@ -1,6 +1,4 @@
 config.json
 watchlist.txt
-dip_report.html
-.alert_state.json
 __pycache__/
 *.new
