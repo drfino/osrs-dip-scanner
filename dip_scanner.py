@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-OSRS instasell spike scanner.
+OSRS GE Dip Scanner: finds instasell dumps worth bidding on.
 
   python dip_scanner.py serve   Easiest: opens a local page (http://localhost:8765) with a Scan button,
-                                a cash stack box and auto-refresh. "Spike Scanner.bat" runs this.
-  python dip_scanner.py scan    One-click audit: finds deep, short instasell spikes in the last
+                                a cash stack box and auto-refresh. "GE Dip Scanner.bat" runs this.
+  python dip_scanner.py scan    One-click audit: finds deep, short instasell dumps in the last
                                 24h, suggests a lowball bid per item, and opens an HTML report
                                 with a chart for every item.
   python dip_scanner.py watch   Leaves a loop running. Every few minutes it checks the latest
                                 instasell price of every watched item and pushes a phone
-                                notification (ntfy app) when one spikes far below its last-hour price.
+                                notification (ntfy app) when one dumps far below its last-hour price.
   python dip_scanner.py test-alert   Sends one test notification to your phone.
 
-A "spike" is a short, sharp dump that bounces back, measured against the price AROUND it
+A "dump" is a short, sharp drop that bounces back, measured against the price AROUND it
 (the median instasell of the surrounding 90 minutes), so slow drifts and noise don't count:
   - the 5-minute average instasell is deep enough that a bid beat_by_pct above it still clears
     min_profit_pct after tax,
@@ -43,14 +43,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ZIP = "https://github.com/drfino/osrs-dip-scanner/archive/refs/heads/master.zip"
 # Only these files are ever replaced by an update. Your config.json and watchlist.txt are yours.
-UPDATABLE = ("dip_scanner.py", "README.md", "watchlist.example.txt")
+UPDATABLE = ("dip_scanner.py", "README.md", "watchlist.example.txt", "GE Dip Scanner.bat")
 API = "https://prices.runescape.wiki/api/v1/osrs"
 ITEM_PAGE = "https://prices.runescape.wiki/osrs/item/{}"
 GE_TAX = 0.02          # 2% sell tax
 GE_TAX_CAP = 5_000_000
 
 DEFAULT_CONFIG = {
-    "contact": "personal GE spike scanner, Discord: derf01",
+    "contact": "personal GE dip scanner, Discord: derf01",
     "local_window_minutes": 90,
     "long_baseline_days": 7,
     "spike_max_age_hours": 12,
@@ -69,7 +69,7 @@ DEFAULT_CONFIG = {
     "max_offer_pct": 29,       # most one offer may use, as % of your stack (also the priciest item)
     "min_daily_volume": 25,    # trades per day, so offers can actually fill
     "max_auto_items": 80,
-    "max_shown": 8,            # show the best N spikes; the rest fold away      # keep scans quick: top items by daily gp traded
+    "max_shown": 8,            # show the best N items; the rest fold away      # keep scans quick: top items by daily gp traded
 }
 
 
@@ -472,7 +472,7 @@ def print_table(results, cfg, now):
     if not with_spikes:
         print("Nothing worth a bid right now. Quiet market: check back later.")
         return
-    hdr = f"{'Item':<32}{'Normal now':>12}{'Spikes':>8}{'Deepest':>18}{'Suggested bid':>15}{'Under':>8}{'Profit/day':>12}"
+    hdr = f"{'Item':<32}{'Normal now':>12}{'Dumps':>8}{'Deepest':>18}{'Suggested bid':>15}{'Under':>8}{'Profit/day':>12}"
     print(hdr)
     print("-" * len(hdr))
     for r in with_spikes:
@@ -546,7 +546,7 @@ def row_html(r, cfg, now):
     live = ""
     if r["now_pct"] is not None and r["now_pct"] >= cfg["alert_spike_pct"] and \
             now - (r["now_low_ts"] or 0) <= cfg["alert_max_age_minutes"] * 60:
-        live = f'<span class="chip live">Spiking now -{r["now_pct"]:.1f}%</span>'
+        live = f'<span class="chip live">Dumping now -{r["now_pct"]:.1f}%</span>'
     elif d and d.get("ongoing"):
         live = '<span class="chip warn">Recent, not recovered yet</span>'
     if r["choppy"]:
@@ -597,7 +597,7 @@ def build_report(results, cfg, now, toolbar=""):
 
     html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Spike Scanner</title>
+<title>GE Dip Scanner</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Libre+Franklin:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -659,7 +659,7 @@ th.num {{ text-align:right }}
 .bar .status.err {{ color:var(--dip) }}
 .bar progress {{ width:140px; accent-color:var(--gold) }}
 </style></head><body>
-<header><h1>Spike Scanner</h1>
+<header><h1>GE Dip Scanner</h1>
 <span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} worth a bid{f", best {len(top)} shown" if more else ""}</span></header>
 {toolbar}
 <p class="legend">A <b>dump</b> is a 5-minute instasell deep enough that a bid {cfg['beat_by_pct']}% above it still makes
@@ -668,7 +668,7 @@ th.num {{ text-align:right }}
 Items are listed if they dumped in the last {cfg['spike_max_age_hours']}h; choppy items are ranked lower.
 Chart: <i style="background:var(--sell)"></i>instasell <i style="background:var(--buy)"></i>instabuy
 <i style="border-top:1px dashed var(--muted)"></i>normal price now <i style="border-top:2px dashed var(--gold)"></i>suggested bid,
-red dots are spikes. <b>Suggested bid</b> is the bid that would have made the most profit over the last 24h:
+red dots are dumps. <b>Suggested bid</b> is the bid that would have made the most profit over the last 24h:
 every depth from {cfg['min_profit_pct']}% profit up to 30% under is replayed against the day's dumps, counting a dump only if it
 went {cfg['beat_by_pct']}% past your bid (dumps fill the highest bids first) and only up to the units dumped.
 <b>Est. profit/day</b> is what that bid would have made in the last 24h, and is what the list is ranked by.
@@ -711,7 +711,7 @@ TOOLBAR = """<div class="bar">
   async function poll() {
     let s;
     try { s = await (await fetch('/status')).json(); }
-    catch (e) { st.textContent = 'Scanner stopped. Double-click Spike Scanner.bat to start it again.'; st.className = 'status err'; btn.disabled = true; return; }
+    catch (e) { st.textContent = 'Scanner stopped. Double-click GE Dip Scanner.bat to start it again.'; st.className = 'status err'; btn.disabled = true; return; }
     if (s.running) {
       btn.disabled = true; prog.hidden = false; prog.max = s.total || 1; prog.value = s.done || 0;
       st.className = 'status'; st.textContent = 'Scanning ' + (s.done || 0) + '/' + (s.total || '?') + (s.name ? ' · ' + s.name : '');
@@ -745,14 +745,14 @@ TOOLBAR = """<div class="bar">
 })();
 </script>"""
 
-SETUP_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Spike Scanner</title>
+SETUP_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>GE Dip Scanner</title>
 <style>body{margin:0;display:grid;place-items:center;height:100vh;background:#1d1c19;color:#ece6d8;
 font:15px system-ui,sans-serif}@media (prefers-color-scheme: light){body{background:#f3f1ec;color:#24221d}}
 .box{max-width:420px;text-align:center}input{font:16px system-ui;padding:8px 10px;width:160px;border-radius:5px;
 border:1px solid #6f6a5e;background:transparent;color:inherit}button{font:600 15px system-ui;padding:9px 18px;
 border:0;border-radius:5px;background:#e3b341;color:#1d1c19;cursor:pointer;margin-left:6px}
 p{color:#a39c8b}a{color:#a39c8b;font-size:13px}.err{color:#ff5a5f;min-height:1.4em}</style></head><body>
-<div class="box"><h2>Spike Scanner</h2>
+<div class="box"><h2>GE Dip Scanner</h2>
 <p>What's your cash stack? It picks items that fit it (about 5% to 29% of your stack per item).
 You can change it any time on the main page.</p>
 <form id="f"><input id="cash" placeholder="e.g. 15m" autofocus><button>Scan</button></form>
@@ -773,11 +773,11 @@ def _needs_setup(cfg):
     return not cfg.get("cash_stack") and not cfg.get("setup_done")
 
 
-WAITING_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Spike Scanner</title>
+WAITING_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>GE Dip Scanner</title>
 <style>body{margin:0;display:grid;place-items:center;height:100vh;background:#1d1c19;color:#ece6d8;
 font:15px system-ui,sans-serif}@media (prefers-color-scheme: light){body{background:#f3f1ec;color:#24221d}}
 .box{text-align:center}progress{width:260px;accent-color:#e3b341}.err{color:#ff5a5f}</style></head><body>
-<div class="box"><h2>Spike Scanner</h2><p id="st">Running the first scan…</p><progress id="p" max="1" value="0"></progress></div>
+<div class="box"><h2>GE Dip Scanner</h2><p id="st">Running the first scan…</p><progress id="p" max="1" value="0"></progress></div>
 <script>
 async function poll(){let s;try{s=await (await fetch('/status')).json()}catch(e){return}
 if(s.last){location.reload();return}
@@ -907,7 +907,7 @@ def self_update():
     Any problem (offline, GitHub down) is ignored and the current version keeps running.
     """
     try:
-        req = urllib.request.Request(REPO_ZIP, headers={"User-Agent": "osrs-spike-scanner-updater"})
+        req = urllib.request.Request(REPO_ZIP, headers={"User-Agent": "osrs-ge-dip-scanner-updater"})
         with urllib.request.urlopen(req, timeout=15) as r:
             archive = zipfile.ZipFile(io.BytesIO(r.read()))
     except Exception as e:
@@ -946,7 +946,7 @@ def serve(open_browser=True, update=True):
         server = ThreadingHTTPServer(("127.0.0.1", PORT), _Handler)
     except OSError:
         # Already running (or the port is taken): just open the page.
-        print(f"Spike Scanner is already running. Opening {URL}")
+        print(f"GE Dip Scanner is already running. Opening {URL}")
         if open_browser:
             webbrowser.open(URL)
         return
@@ -959,7 +959,7 @@ def serve(open_browser=True, update=True):
                 os._exit(0)
     threading.Thread(target=idle_watch, daemon=True).start()
 
-    print(f"Spike Scanner is running at {URL}")
+    print(f"GE Dip Scanner is running at {URL}")
     print("Close this window to stop it. It also stops by itself after "
           f"{IDLE_SHUTDOWN_HOURS} hours of nobody looking at the page.")
     if not _needs_setup(load_config()):
@@ -1027,11 +1027,11 @@ def watch(cfg):
                 msg = (f"{it['name']} instasold at {low:,} ({pct:.1f}% under its "
                        f"last-hour average {int(base):,}), {ago(ts, now)}. "
                        f"Try a buy offer around {bid:,}. Limit {it.get('limit') or '?'}.")
-                print(f"[{datetime.now():%H:%M}] SPIKE  {msg}")
+                print(f"[{datetime.now():%H:%M}] DUMP  {msg}")
                 notify(cfg, f"{it['name']} -{pct:.0f}%", msg, ITEM_PAGE.format(it["id"]),
                        priority="urgent" if pct >= thr * 1.5 else "high")
             if not hits:
-                print(f"[{datetime.now():%H:%M}] no spikes", end="\r", flush=True)
+                print(f"[{datetime.now():%H:%M}] no dumps", end="\r", flush=True)
             with open(state_path, "w", encoding="utf-8") as f:
                 json.dump(alerted, f)
         except KeyboardInterrupt:
@@ -1054,7 +1054,7 @@ def main():
         elif mode == "watch":
             watch(cfg)
         elif mode == "test-alert":
-            ok = notify(cfg, "Spike Scanner test", "Phone alerts are working.", priority="default")
+            ok = notify(cfg, "GE Dip Scanner test", "Phone alerts are working.", priority="default")
             print("Sent. Check your phone." if ok else "Not sent: set ntfy_topic in config.json first.")
         else:
             print(__doc__)

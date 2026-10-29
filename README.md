@@ -1,4 +1,4 @@
-# OSRS Spike Scanner
+# OSRS GE Dip Scanner
 
 Finds the deep, short instasell **dumps** on your watchlist, the kind where someone sells
 an item far below its price and it bounces right back, so you know where to leave lowball
@@ -8,7 +8,7 @@ offers. It ignores small wiggles and slow price drifts.
 
 1. Install Python 3 from python.org (tick **"Add python.exe to PATH"** in the installer).
 2. On GitHub, click **Code → Download ZIP**, and unzip it somewhere, e.g. `Documents\osrs-dip-scanner`.
-3. Optional: right-click **Spike Scanner.bat** → **Send to → Desktop (create shortcut)**.
+3. Optional: right-click **GE Dip Scanner.bat** → **Send to → Desktop (create shortcut)**.
 
 That's the only download you ever need. **It updates itself:** every time you start it, it fetches the
 latest version from GitHub and restarts on it if anything changed. Your `watchlist.txt` and settings
@@ -16,14 +16,14 @@ are never overwritten.
 
 ## Use
 
-Double-click **Spike Scanner.bat**. Your browser opens **http://localhost:8765**:
+Double-click **GE Dip Scanner.bat**. Your browser opens **http://localhost:8765**:
 
 - The first time, it asks for your cash stack, then scans (about 30 seconds, with a progress bar).
   After that it remembers your stack and scans as soon as it opens.
 - **Scan now** rescans any time. Leave the tab open and it rescans every 10 minutes on its own.
 - **Cash stack**: see below.
 - Already running? Double-clicking the shortcut again just reopens the page. You can also bookmark it.
-- A small minimized window titled "Spike Scanner" keeps it running. Close it to stop, or it stops
+- A small minimized window titled "GE Dip Scanner" keeps it running. Close it to stop, or it stops
   on its own after 3 hours with the page closed.
 
 ### Let your cash stack pick the items
