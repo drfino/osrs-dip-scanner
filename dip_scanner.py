@@ -616,8 +616,6 @@ header {{ display:flex; flex-wrap:wrap; gap:8px 24px; align-items:baseline; marg
 h1 {{ font-weight:800; font-size:26px; margin:0; letter-spacing:-.01em }}
 .meta {{ color:var(--muted); font-size:13px }}
 .legend {{ color:var(--muted); font-size:12.5px; margin:10px 0 18px; max-width:92ch }}
-.legend ol {{ margin:0 0 6px; padding-left:20px; color:var(--fg) }}
-.legend li {{ margin:2px 0 }}
 .legend p {{ margin:6px 0 }}
 .legend summary {{ cursor:pointer }}
 .legend i {{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin:0 4px 0 10px }}
@@ -667,12 +665,9 @@ th.num {{ text-align:right }}
 <span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} worth a bid{f", best {len(top)} shown" if more else ""}</span></header>
 {toolbar}
 <div class="legend">
-<ol>
-<li>These items had someone dump them far below their normal price recently. Best money-makers are at the top.</li>
-<li>Put a buy offer in at the <b>Suggested bid</b>, for the quantity shown. Leave it there; it fills when the next dump hits.</li>
-<li>When it fills, sell at about the <b>Normal now</b> price.</li>
-<li>Check back daily. If an item drops off the list or its offer hasn't filled in a day or two, move that slot to something new.</li>
-</ol>
+<p>These items were recently <b>dumped</b> far below their normal price, best money-makers first.
+Leave a buy offer at the <b>Suggested bid</b> for the quantity shown; it fills when the next dump hits.
+Once it fills, sell at around <b>Normal now</b>. Check back daily, and move any offer that hasn't filled in a day or two.</p>
 <p>Chart: <i style="background:var(--sell)"></i>instasell <i style="background:var(--buy)"></i>instabuy
 <i style="border-top:1px dashed var(--muted)"></i>normal price <i style="border-top:2px dashed var(--gold)"></i>your bid, red dots are dumps.</p>
 <details><summary>How it picks</summary>
