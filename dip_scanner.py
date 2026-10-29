@@ -52,7 +52,6 @@ DEFAULT_CONFIG = {
     "spike_recover_minutes": 60,
     "beat_by_pct": 3,          # a past dip only counts as filling your bid if it went this much further down
     "min_profit_pct": 4,       # never suggest a bid that leaves less than this after tax
-    "min_profit_gp": 100000,   # ...or less than this much gp per flip
     # Auto watchlist from your cash stack (0 = only use watchlist.txt).
     "cash_stack": 0,
     "min_item_pct": 5,         # cheapest item to watch, as % of your stack
@@ -382,7 +381,7 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
         profit = sell_after_tax(ref) - bid
         hit = [e for e in dumps if e["low"] <= bid * (1 - beat / 100)]
         ev = len(hit) * profit           # one item per offer: each dip that reaches you is one flip
-        if hit and profit >= cfg["min_profit_gp"] and profit > 0 and (pick is None or ev > pick["ev_day"]):
+        if hit and profit > 0 and (pick is None or ev > pick["ev_day"]):
             pick = {"bid": bid, "profit": profit, "profit_pct": profit / bid * 100, "depth": depth,
                     "fills": len(hit), "ev_day": ev}
         depth += 0.5
