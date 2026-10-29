@@ -69,6 +69,7 @@ The page covers the cash stack. For anything else, create `config.json` next to 
 | `max_shown` | 8 | How many items to show. |
 | `beat_by_pct` | 3 | How far a dip must go past your bid to count as a fill. Higher = safer bids, less profit. |
 | `min_profit_pct` | 4 | Least profit to suggest, after tax. |
+| `min_profit_gp` | 100000 | Least gp per flip to suggest, after tax. |
 | `min_daily_volume` | 25 | Trades per day an item needs to be picked. |
 | `min_item_pct` / `max_offer_pct` | 5 / 29 | Cheapest and priciest items to watch, as % of your stack. |
 
