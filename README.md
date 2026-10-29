@@ -1,6 +1,6 @@
 # OSRS GE Dip Scanner
 
-Finds the deep, short instasell **dumps** on your watchlist, the kind where someone sells
+Finds the deep, short instasell **dips** on your watchlist, the kind where someone sells
 an item far below its price and it bounces right back, so you know where to leave lowball
 offers. It ignores small wiggles and slow price drifts.
 
@@ -42,19 +42,19 @@ What the page shows: the **best 8 items worth a bid**, ranked by estimated profi
 just means a quiet market.
 
 - **Normal now**: what it sells for today, with its 7-day average below.
-- **Deepest**: the biggest dump in the last day.
+- **Deepest**: the biggest dip in the last day.
 - **Suggested bid**: where to leave your buy offer for one.
 - **Est. profit/day**: what that bid would have made in the last 24h.
 - Tags: **New** (wasn't on the list last time you looked) and **Choppy price** (jumps around a lot, ranked lower).
 
 ## How it works
 
-A **dump** is a 5-minute instasell at least 9% below both the price around it and the 7-day average,
+A **dip** is a 5-minute instasell at least 9% below both the price around it and the 7-day average,
 lasting 30 minutes or less and bouncing back within an hour. Slow price drops don't count, and an item
-only shows if it dumped in the last 12 hours.
+only shows if it dipped in the last 12 hours.
 
-The **suggested bid** is whichever bid would have made the most gp over the last 24 hours. A dump only
-counts as filling you if it went 3% below your bid, because dumps fill the highest bids first and other
+The **suggested bid** is whichever bid would have made the most gp over the last 24 hours. A dip only
+counts as filling you if it went 3% below your bid, because sellers fill the highest bids first and other
 lowballers sit just above the bottom. Bids land just above round numbers (1,004,111, not 1,000,000).
 
 It's an estimate from one day: check back daily and move offers that stopped filling.
@@ -67,7 +67,7 @@ The page covers the cash stack. For anything else, create `config.json` next to 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `max_shown` | 8 | How many items to show. |
-| `beat_by_pct` | 3 | How far a dump must go past your bid to count as a fill. Higher = safer bids, less profit. |
+| `beat_by_pct` | 3 | How far a dip must go past your bid to count as a fill. Higher = safer bids, less profit. |
 | `min_profit_pct` | 4 | Least profit to suggest, after tax. |
 | `min_daily_volume` | 25 | Trades per day an item needs to be picked. |
 | `min_item_pct` / `max_offer_pct` | 5 / 29 | Cheapest and priciest items to watch, as % of your stack. |

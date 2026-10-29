@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-OSRS GE Dip Scanner: finds instasell dumps worth bidding on.
+OSRS GE Dip Scanner: finds instasell dips worth bidding on.
 
 Double-click "GE Dip Scanner.bat" (or run: python dip_scanner.py). It opens a local page
 (http://localhost:8765) with a Scan button and a cash stack box, and rescans every 10 minutes.
 
-A "dump" is a short, sharp drop that bounces back, measured against the price AROUND it
+A "dip" is a short, sharp drop that bounces back, measured against the price AROUND it
 (the median instasell of the surrounding 90 minutes), so slow drifts and noise don't count:
   - the 5-minute average instasell is deep enough that a bid beat_by_pct above it still clears
     min_profit_pct after tax,
@@ -50,7 +50,7 @@ DEFAULT_CONFIG = {
     "choppy_noise_pct": 3,
     "spike_max_minutes": 30,
     "spike_recover_minutes": 60,
-    "beat_by_pct": 3,          # a past dump only counts as filling your bid if it went this much further down
+    "beat_by_pct": 3,          # a past dip only counts as filling your bid if it went this much further down
     "min_profit_pct": 4,       # never suggest a bid that leaves less than this after tax
     # Auto watchlist from your cash stack (0 = only use watchlist.txt).
     "cash_stack": 0,
@@ -380,7 +380,7 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
         bid = price_bid(ref * (1 - depth / 100))
         profit = sell_after_tax(ref) - bid
         hit = [e for e in dumps if e["low"] <= bid * (1 - beat / 100)]
-        ev = len(hit) * profit           # one item per offer: each dump that reaches you is one flip
+        ev = len(hit) * profit           # one item per offer: each dip that reaches you is one flip
         if hit and profit > 0 and (pick is None or ev > pick["ev_day"]):
             pick = {"bid": bid, "profit": profit, "profit_pct": profit / bid * 100, "depth": depth,
                     "fills": len(hit), "ev_day": ev}
@@ -438,7 +438,7 @@ def run_scan(cfg, progress=None, cache=None):
 
 # ----------------------------------------------------------------------------- HTML report
 
-def sparkline(r, w=260, h=56):
+def sparkline(r, w=540, h=58):
     pts = r["pts"]
     if not pts:
         return ""
@@ -459,7 +459,7 @@ def sparkline(r, w=260, h=56):
     dots = ""
     for e in r["spikes"]:
         x = (e["ts"] - t0) / max(t1 - t0, 1) * w
-        dots += (f'<circle cx="{x:.1f}" cy="{y_of(e["low"]):.1f}" r="3.5"><title>-{e["pct"]:.1f}% at '
+        dots += (f'<circle cx="{x:.1f}" cy="{y_of(e["low"]):.1f}" r="4"><title>-{e["pct"]:.1f}% at '
                  f'{gp(e["low"])}</title></circle>')
     bid_line = ""
     if r["pick"]:
@@ -541,7 +541,7 @@ h1 {{ font-weight:800; font-size:26px; margin:0; letter-spacing:-.01em }}
 .legend p {{ margin:6px 0 }}
 .legend i {{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin:0 4px 0 10px }}
 .wrap {{ overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:6px }}
-table {{ border-collapse:collapse; width:100%; min-width:1050px }}
+table {{ border-collapse:collapse; width:100%; min-width:1200px }}
 th {{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted);
   padding:10px 12px; border-bottom:1px solid var(--line); font-weight:600; white-space:nowrap }}
 td {{ padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:middle }}
@@ -582,11 +582,11 @@ th.num {{ text-align:right }}
 <span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} worth a bid{f", best {len(top)} shown" if len(with_spikes) > len(top) else ""}</span></header>
 {toolbar}
 <div class="legend">
-<p>These items were recently <b>dumped</b> far below their normal price, best money-makers first.
-Leave a buy offer for one at the <b>Suggested bid</b>; it fills when the next dump hits.
+<p>These items recently <b>dipped</b> far below their normal price, best money-makers first.
+Leave a buy offer for one at the <b>Suggested bid</b>; it fills when the next dip hits.
 Once it fills, sell at around <b>Normal now</b>. Check back daily, and move any offer that hasn't filled in a day or two.</p>
 <p>Chart: <i style="background:var(--sell)"></i>instasell <i style="background:var(--buy)"></i>instabuy
-<i style="border-top:1px dashed var(--muted)"></i>normal price <i style="border-top:2px dashed var(--gold)"></i>your bid, red dots are dumps.</p>
+<i style="border-top:1px dashed var(--muted)"></i>normal price <i style="border-top:2px dashed var(--gold)"></i>your bid, red dots are dips.</p>
 </div>
 <div class="wrap"><table>
 <thead><tr><th>Item</th><th>Last 24h</th><th class="num">Normal now</th>
