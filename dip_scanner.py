@@ -269,11 +269,23 @@ def local_prices(pts, cfg):
     gap = 15 * 60
     lows = [(p["timestamp"], p["avgLowPrice"]) for p in pts if p.get("avgLowPrice")]
     out = {}
-    for t, _ in lows:
+    for t in (p["timestamp"] for p in pts):   # every bucket, so instabuy-only dips get a baseline too
         near = [v for (u, v) in lows if gap < abs(u - t) <= win]
         if len(near) >= 4:
             out[t] = statistics.median(near)
     return out
+
+
+def dip_price(p):
+    """
+    The lowest trade in a 5-minute bucket, and its volume. Usually the instasell, but a deep
+    instabuy counts too: a seller listed cheap with no buy offers above them, so a standing
+    lowball bid would have filled just the same.
+    """
+    lo, hi = p.get("avgLowPrice"), p.get("avgHighPrice")
+    if hi and (not lo or hi < lo):
+        return hi, p.get("highPriceVolume") or 0
+    return lo, p.get("lowPriceVolume") or 0
 
 
 def find_spikes(pts, local, cfg, now, long_base=None):
@@ -289,7 +301,7 @@ def find_spikes(pts, local, cfg, now, long_base=None):
 
     events, cur = [], None
     for p in pts:
-        low, t = p.get("avgLowPrice"), p["timestamp"]
+        (low, vol), t = dip_price(p), p["timestamp"]
         loc = local.get(t)
         if not low or not loc:
             continue
@@ -299,12 +311,12 @@ def find_spikes(pts, local, cfg, now, long_base=None):
         pct = (base - low) / base * 100
         if cur and t - cur["end"] <= 900:
             cur["end"] = t
-            cur["vol"] += p.get("lowPriceVolume") or 0
+            cur["vol"] += vol
             if pct > cur["pct"]:
                 cur.update(low=low, ts=t, pct=pct, base=base, local=loc)
         else:
             cur = {"ts": t, "start": t, "end": t, "low": low, "pct": pct, "base": base, "local": loc,
-                   "vol": p.get("lowPriceVolume") or 0}
+                   "vol": vol}
             events.append(cur)
 
     spikes, rejected, stale = [], 0, 0
@@ -385,7 +397,14 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
             pick = {"bid": bid, "profit": profit, "profit_pct": profit / bid * 100, "depth": depth,
                     "fills": len(hit), "ev_day": ev}
         depth += 0.5
-    score = (pick["ev_day"] if pick else 0) * (0.3 if choppy else 1)
+    # Rank by what's likely to happen again, not just what happened once: a single dip is weak
+    # evidence (each dip counts half a fill less), and a recent dip counts a bit more than one
+    # from many hours ago (dips come in clusters).
+    score = 0
+    if pick:
+        age = min(now - e["ts"] for e in spikes)
+        recency = 1 - 0.3 * min(age / (cfg["spike_max_age_hours"] * 3600), 1)
+        score = pick["profit"] * (pick["fills"] - 0.5) * recency * (0.3 if choppy else 1)
     if pick and budget and pick["bid"] > budget:
         score *= 0.1                         # can't afford it in one offer: list it, but below the rest
 

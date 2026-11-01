@@ -49,13 +49,15 @@ just means a quiet market.
 
 ## How it works
 
-A **dip** is a 5-minute instasell at least 9% below both the price around it and the 7-day average,
+A **dip** is a 5-minute trade (an instasell, or an instabuy: a seller who listed cheap with no buy offers above them) at least 9% below both the price around it and the 7-day average,
 lasting 30 minutes or less and bouncing back within an hour. Slow price drops don't count, and an item
 only shows if it dipped in the last 18 hours.
 
 The **suggested bid** is whichever bid would have made the most gp over the last 24 hours. A dip only
 counts as filling you if it went 3% below your bid, because sellers fill the highest bids first and other
 lowballers sit just above the bottom. Bids land just above round numbers (1,004,111, not 1,000,000).
+
+The list is ranked by expected profit, with two tweaks: an item that dipped only once counts for less than one that dips repeatedly, and a recent dip counts a bit more than an old one.
 
 It's an estimate from one day: check back daily and move offers that stopped filling.
 
