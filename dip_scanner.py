@@ -422,23 +422,36 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
 
 DIP_LOG = os.path.join(HERE, "dip_log.csv")
 DIP_LOG_FIELDS = ["logged_at", "item_id", "item", "dip_time", "side", "dip_low", "price_around",
-                  "avg_7d", "depth_pct", "minutes", "units", "normal_now"]
+                  "avg_7d", "depth_pct", "minutes", "units", "normal_now",
+                  "prev_dip_time", "prev_dip_low", "hours_since_prev", "vs_prev_pct"]
 
 
 def log_dips(results, now):
     """
-    Append every finished dip (it bounced back) to dip_log.csv, once each, so we can later work
-    out how deep dips really go for different item prices and tune the suggested bid.
-    Never breaks a scan: any error here is ignored.
+    Append every finished dip (it bounced back) to dip_log.csv, once each. Each row also carries
+    the item's previous dip, and how far this one's low was above or below it (vs_prev_pct): the
+    question it answers is "after seeing a dip, how far above its low would a bid have needed to
+    be to fill on the next one?". Never breaks a scan: any error here is ignored.
     """
     try:
-        seen = set()
+        seen, last, old = set(), {}, []
         if os.path.exists(DIP_LOG):
             with open(DIP_LOG, newline="", encoding="utf-8") as f:
-                seen = {(row["item_id"], row["dip_time"]) for row in csv.DictReader(f)}
+                reader = csv.DictReader(f)
+                old = list(reader)
+                if reader.fieldnames != DIP_LOG_FIELDS:   # older log: rewrite it with the new columns
+                    with open(DIP_LOG, "w", newline="", encoding="utf-8") as g:
+                        w = csv.DictWriter(g, fieldnames=DIP_LOG_FIELDS, extrasaction="ignore")
+                        w.writeheader()
+                        w.writerows(old)
+                for row in old:
+                    seen.add((row["item_id"], row["dip_time"]))
+                    prev = last.get(row["item_id"])
+                    if prev is None or row["dip_time"] > prev[0]:
+                        last[row["item_id"]] = (row["dip_time"], int(row["dip_low"]))
         rows = []
         for r in results:
-            for e in r["spikes"]:
+            for e in sorted(r["spikes"], key=lambda e: e["ts"]):
                 if e.get("ongoing"):
                     continue                 # not finished yet: log it once it has bounced back
                 dip_time = datetime.fromtimestamp(e["ts"]).isoformat(timespec="minutes")
@@ -446,7 +459,15 @@ def log_dips(results, now):
                 if key in seen:
                     continue
                 seen.add(key)
-                rows.append({
+                prev = last.get(key[0])
+                pair = {}
+                if prev and prev[0] < dip_time:
+                    hours = (e["ts"] - datetime.fromisoformat(prev[0]).timestamp()) / 3600
+                    pair = {"prev_dip_time": prev[0], "prev_dip_low": prev[1],
+                            "hours_since_prev": round(hours, 1),
+                            "vs_prev_pct": round((e["low"] - prev[1]) / prev[1] * 100, 2)}
+                last[key[0]] = (dip_time, int(e["low"]))
+                rows.append({**pair,
                     "logged_at": datetime.fromtimestamp(now).isoformat(timespec="minutes"),
                     "item_id": r["item"]["id"], "item": r["item"]["name"], "dip_time": dip_time,
                     "side": e.get("side", "instasell"), "dip_low": int(e["low"]),
