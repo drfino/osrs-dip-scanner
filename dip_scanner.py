@@ -423,58 +423,64 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
 DIP_LOG = os.path.join(HERE, "dip_log.csv")
 DIP_LOG_FIELDS = ["logged_at", "item_id", "item", "dip_time", "side", "dip_low", "price_around",
                   "avg_7d", "depth_pct", "minutes", "units", "normal_now",
-                  "prev_dip_time", "prev_dip_low", "hours_since_prev", "vs_prev_pct"]
+                  "window_hours", "next_low", "next_low_hours_after", "next_low_vs_dip_pct",
+                  "next_low_vs_around_pct"]
+RELATED_HOURS = 6   # a later low within this many hours of a dip counts as the same buy window
 
 
 def log_dips(results, now):
     """
-    Append every finished dip (it bounced back) to dip_log.csv, once each. Each row also carries
-    the item's previous dip, and how far this one's low was above or below it (vs_prev_pct): the
-    question it answers is "after seeing a dip, how far above its low would a bid have needed to
-    be to fill on the next one?". Never breaks a scan: any error here is ignored.
+    Append finished dips to dip_log.csv, once each. A dip is logged once RELATED_HOURS have
+    passed since it ended, with the lowest trade in those hours (next_low): the price a bid placed
+    off this dip would have needed to fill. E.g. a dip to 500k then a low of 600k two hours later
+    logs next_low_vs_dip_pct = +20. Later than that, dips are unrelated and aren't compared.
+    Experimental: nothing on the page uses it. Never breaks a scan: errors are only printed.
     """
     try:
-        seen, last, old = set(), {}, []
+        seen = set()
         if os.path.exists(DIP_LOG):
             with open(DIP_LOG, newline="", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 old = list(reader)
-                if reader.fieldnames != DIP_LOG_FIELDS:   # older log: rewrite it with the new columns
-                    with open(DIP_LOG, "w", newline="", encoding="utf-8") as g:
-                        w = csv.DictWriter(g, fieldnames=DIP_LOG_FIELDS, extrasaction="ignore")
-                        w.writeheader()
-                        w.writerows(old)
-                for row in old:
-                    seen.add((row["item_id"], row["dip_time"]))
-                    prev = last.get(row["item_id"])
-                    if prev is None or row["dip_time"] > prev[0]:
-                        last[row["item_id"]] = (row["dip_time"], int(row["dip_low"]))
+            if reader.fieldnames != DIP_LOG_FIELDS:   # older log: rewrite it with the new columns
+                with open(DIP_LOG, "w", newline="", encoding="utf-8") as g:
+                    w = csv.DictWriter(g, fieldnames=DIP_LOG_FIELDS, extrasaction="ignore")
+                    w.writeheader()
+                    w.writerows(old)
+            seen = {(row["item_id"], row["dip_time"]) for row in old}
+        window = RELATED_HOURS * 3600
         rows = []
         for r in results:
+            pts = r.get("pts") or []
+            last_bucket = pts[-1]["timestamp"] if pts else 0
             for e in sorted(r["spikes"], key=lambda e: e["ts"]):
-                if e.get("ongoing"):
-                    continue                 # not finished yet: log it once it has bounced back
+                if e.get("ongoing") or last_bucket < e["end"] + window:
+                    continue                 # its buy window isn't over yet: log it on a later scan
                 dip_time = datetime.fromtimestamp(e["ts"]).isoformat(timespec="minutes")
                 key = (str(r["item"]["id"]), dip_time)
                 if key in seen:
                     continue
                 seen.add(key)
-                prev = last.get(key[0])
-                pair = {}
-                if prev and prev[0] < dip_time:
-                    hours = (e["ts"] - datetime.fromisoformat(prev[0]).timestamp()) / 3600
-                    pair = {"prev_dip_time": prev[0], "prev_dip_low": prev[1],
-                            "hours_since_prev": round(hours, 1),
-                            "vs_prev_pct": round((e["low"] - prev[1]) / prev[1] * 100, 2)}
-                last[key[0]] = (dip_time, int(e["low"]))
-                rows.append({**pair,
+                nxt = None
+                for p in pts:
+                    if e["end"] < p["timestamp"] <= e["end"] + window:
+                        price = dip_price(p)[0]
+                        if price and (nxt is None or price < nxt[0]):
+                            nxt = (price, p["timestamp"])
+                row = {
                     "logged_at": datetime.fromtimestamp(now).isoformat(timespec="minutes"),
                     "item_id": r["item"]["id"], "item": r["item"]["name"], "dip_time": dip_time,
                     "side": e.get("side", "instasell"), "dip_low": int(e["low"]),
                     "price_around": int(e["local"]), "avg_7d": int(r["long_base"]) if r["long_base"] else "",
                     "depth_pct": round(e["pct"], 2), "minutes": int((e["end"] - e["start"]) / 60) + 5,
-                    "units": e["vol"], "normal_now": int(r["base"]),
-                })
+                    "units": e["vol"], "normal_now": int(r["base"]), "window_hours": RELATED_HOURS,
+                }
+                if nxt:
+                    row.update({"next_low": int(nxt[0]),
+                                "next_low_hours_after": round((nxt[1] - e["ts"]) / 3600, 1),
+                                "next_low_vs_dip_pct": round((nxt[0] - e["low"]) / e["low"] * 100, 2),
+                                "next_low_vs_around_pct": round((nxt[0] - e["local"]) / e["local"] * 100, 2)})
+                rows.append(row)
         if rows:
             new = not os.path.exists(DIP_LOG)
             with open(DIP_LOG, "a", newline="", encoding="utf-8") as f:

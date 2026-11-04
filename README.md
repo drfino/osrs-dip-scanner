@@ -63,13 +63,15 @@ It's an estimate from one day: check back daily and move offers that stopped fil
 
 ## Dip log
 
-Every scan adds each finished dip it sees to `dip_log.csv` next to the scanner, once per dip: the
-item, when, how deep (vs the price around it and the 7-day average), how long it lasted, how many
-sold, and whether it was an instasell or instabuy. Each row also shows the item's **previous dip**:
-when it was, its low, and how far this dip's low was above or below it (`vs_prev_pct`). That answers
-"after I see a dip, how far above its low should I bid to catch the next one?". Updates never touch it. After a couple of weeks
-it shows how deep dips really go for cheap vs expensive items, so the suggested bid can be tuned on
-real data. Open it in any spreadsheet app.
+Experimental, and nothing on the page uses it yet. Scans write each finished dip to `dip_log.csv`
+next to the scanner, once per dip: the item, when, how deep, how long it lasted, how many sold,
+and instasell or instabuy.
+
+A dip is logged 6 hours after it ends, with the **lowest price in those 6 hours** (`next_low`):
+what a bid placed off that dip would have needed to fill. A dip to 500k then a low of 600k two
+hours later logs `next_low_vs_dip_pct` = +20. Lows later than 6 hours are treated as unrelated.
+After a couple of weeks it shows how far above a dip's low to bid. Updates never touch it.
+Open it in any spreadsheet app.
 
 ## Tuning
 
