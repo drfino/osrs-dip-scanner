@@ -38,14 +38,14 @@ moves with the market and with your stack:
 
 Leave the cash stack empty to scan only your `watchlist.txt`.
 
-What the page shows: the **best 8 items worth a bid**, ranked by estimated profit per day. A short list
+What the page shows: the **best 8 items worth a bid**, ranked by profit per flip. A short list
 just means a quiet market.
 
 - **Normal now**: what it sells for today, with its 7-day average below.
 - **Deepest**: the biggest dip in the last day.
 - **Suggested bid**: where to leave your buy offer for one.
-- **Est. profit/day**: what that bid would have made in the last 24h.
-- Tags: **New** (wasn't on the list last time you looked) and **Choppy price** (jumps around a lot, ranked lower).
+- **Profit per flip**: what that bid makes on one item at today's price, after tax, and how many of today's dips it would have filled.
+- Tags: **New** (wasn't on the list last time you looked) and **Choppy price** (jumps around a lot).
 
 ## How it works
 
@@ -53,11 +53,11 @@ A **dip** is a 5-minute trade (an instasell, or an instabuy: a seller who listed
 lasting 30 minutes or less and bouncing back within an hour. Slow price drops don't count, and an item
 only shows if it dipped in the last 18 hours.
 
-The **suggested bid** is whichever bid would have made the most gp over the last 24 hours. A dip only
+The **suggested bid** is the lowest bid that would still have filled on every dip in the last 18 hours. A dip only
 counts as filling you if it went 3% below your bid, because sellers fill the highest bids first and other
 lowballers sit just above the bottom. Bids land just above round numbers (1,004,111, not 1,000,000).
 
-The list is ranked by expected profit, with two tweaks: an item that dipped only once counts for less than one that dips repeatedly, and a recent dip counts a bit more than an old one.
+The list is sorted by profit per flip. Nothing is modelled or weighted: the dip count and how long ago it dipped are shown so you can judge them yourself.
 
 It's an estimate from one day: check back daily and move offers that stopped filling.
 

@@ -358,10 +358,10 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     long_base = long_run_price(hourly, cfg, now)
 
     # A dump worth bidding on must be deep enough that a bid beat_by_pct above it still clears
-    # min_profit_pct after tax. Look at the whole last 24h for evidence of how often dumps happen.
+    # min_profit_pct after tax. Only dips in the listing window count.
     min_depth = cfg["min_profit_pct"] + GE_TAX * 100
     beat = cfg["beat_by_pct"]
-    dump_cfg = dict(cfg, spike_min_pct=min_depth + beat, spike_max_age_hours=24)
+    dump_cfg = dict(cfg, spike_min_pct=min_depth + beat)
     spikes, rejected, stale = find_spikes(pts, local, dump_cfg, now, long_base)
 
     # Typical wiggle around the local price, ignoring the spikes themselves: is this item calm?
@@ -379,11 +379,10 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     # high never makes a bid look better than it is.
     ref = min(normal, long_base) if long_base else normal
 
-    # Suggested bid: the bid depth that would have made the most profit over the last 24h.
-    # For every depth from the profit floor to 30% under the normal price, replay the day's
-    # short, recovered dumps: a dump only fills you if it went beat_by_pct further down than
-    # your bid (dumps fill the highest bids first, and other lowballers sit near the bottom),
-    # and you buy one item per offer (buying more just competes with your own resale).
+    # Suggested bid: the lowest bid that would still have filled on every dip in the window
+    # (or on as many as possible). A dip only fills you if it went beat_by_pct further down than
+    # your bid, since sellers fill the highest bids first and other lowballers sit near the bottom.
+    # Nothing modelled: it's what today's dips actually reached.
     dumps = spikes
     pick = None
     budget = offer_budget(cfg)
@@ -392,19 +391,12 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
         bid = price_bid(ref * (1 - depth / 100))
         profit = sell_after_tax(ref) - bid
         hit = [e for e in dumps if e["low"] <= bid * (1 - beat / 100)]
-        ev = len(hit) * profit           # one item per offer: each dip that reaches you is one flip
-        if hit and profit > 0 and (pick is None or ev > pick["ev_day"]):
+        if hit and profit > 0 and (pick is None or len(hit) >= pick["fills"]):
             pick = {"bid": bid, "profit": profit, "profit_pct": profit / bid * 100, "depth": depth,
-                    "fills": len(hit), "ev_day": ev}
+                    "fills": len(hit)}
         depth += 0.5
-    # Rank by what's likely to happen again, not just what happened once: a single dip is weak
-    # evidence (each dip counts half a fill less), and a recent dip counts a bit more than one
-    # from many hours ago (dips come in clusters).
-    score = 0
-    if pick:
-        age = min(now - e["ts"] for e in spikes)
-        recency = 1 - 0.3 * min(age / (cfg["spike_max_age_hours"] * 3600), 1)
-        score = pick["profit"] * (pick["fills"] - 0.5) * recency * (0.3 if choppy else 1)
+    # Ranked by profit per flip. The dip count and age are on the page for you to judge.
+    score = pick["profit"] if pick else 0
     if pick and budget and pick["bid"] > budget:
         score *= 0.1                         # can't afford it in one offer: list it, but below the rest
 
@@ -514,7 +506,7 @@ def row_html(r, cfg, now):
   <td class="num">{gp(r['base'])}{f"<div class='sub'>7d avg {gp(r['long_base'])}</div>" if r.get('long_base') else ''}</td>
   <td class="num">{f"-{d['pct']:.1f}%<div class='sub'>{gp(d['low'])} · {ago(d['ts'], now)}</div>" if d else '<span class="sub">none</span>'}</td>
   <td class="num bidcell">{f"{p['bid']:,}<div class='sub'>{p['depth']:.1f}% under normal</div>{qty_html}" if p else '<span class="sub">too shallow to bid</span>'}</td>
-  <td class="num evcell">{f"{gp(p['ev_day'])}<div class='sub'>{gp(p['profit'])} per flip ({p['profit_pct']:.1f}%)</div><div class='sub'>would have filled {p['fills']}× today</div>" if p else '-'}</td>
+  <td class="num evcell">{f"{gp(p['profit'])}<div class='sub'>{p['profit_pct']:.1f}% after tax</div><div class='sub'>would have filled {p['fills']}× today</div>" if p else '-'}</td>
 </tr>"""
 
 
@@ -609,7 +601,7 @@ Once it fills, sell at around <b>Normal now</b>. Check back daily, and move any 
 </div>
 <div class="wrap"><table>
 <thead><tr><th>Item</th><th>Last 24h</th><th class="num">Normal now</th>
-<th class="num">Deepest</th><th class="num">Suggested bid</th><th class="num">Est. profit/day</th></tr></thead>
+<th class="num">Deepest</th><th class="num">Suggested bid</th><th class="num">Profit per flip</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
 <script>
 // Mark items that weren't on the list the last time you looked at this page.
