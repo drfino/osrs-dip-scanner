@@ -61,6 +61,14 @@ The list is sorted by profit per flip. Nothing is modelled or weighted: the dip 
 
 It's an estimate from one day: check back daily and move offers that stopped filling.
 
+## Dip log
+
+Every scan adds each finished dip it sees to `dip_log.csv` next to the scanner, once per dip: the
+item, when, how deep (vs the price around it and the 7-day average), how long it lasted, how many
+sold, and whether it was an instasell or instabuy. Updates never touch it. After a couple of weeks
+it shows how deep dips really go for cheap vs expensive items, so the suggested bid can be tuned on
+real data. Open it in any spreadsheet app.
+
 ## Tuning
 
 The page covers the cash stack. For anything else, create `config.json` next to the scanner, e.g.

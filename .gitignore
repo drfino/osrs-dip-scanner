@@ -2,3 +2,4 @@ config.json
 watchlist.txt
 __pycache__/
 *.new
+dip_log.csv

@@ -16,6 +16,7 @@ Items whose price normally jumps around a lot are flagged "choppy" and ranked lo
 Data: OSRS Wiki real-time prices API (prices.runescape.wiki), the same data as the site.
 No installs needed, Python 3.8+ standard library only.
 """
+import csv
 import io
 import json
 import shutil
@@ -309,14 +310,15 @@ def find_spikes(pts, local, cfg, now, long_base=None):
         if low > base * (1 - thr):
             continue
         pct = (base - low) / base * 100
+        side = "instabuy" if low != p.get("avgLowPrice") else "instasell"
         if cur and t - cur["end"] <= 900:
             cur["end"] = t
             cur["vol"] += vol
             if pct > cur["pct"]:
-                cur.update(low=low, ts=t, pct=pct, base=base, local=loc)
+                cur.update(low=low, ts=t, pct=pct, base=base, local=loc, side=side)
         else:
             cur = {"ts": t, "start": t, "end": t, "low": low, "pct": pct, "base": base, "local": loc,
-                   "vol": vol}
+                   "vol": vol, "side": side}
             events.append(cur)
 
     spikes, rejected, stale = [], 0, 0
@@ -418,6 +420,51 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
 
 # ----------------------------------------------------------------------------- scan mode
 
+DIP_LOG = os.path.join(HERE, "dip_log.csv")
+DIP_LOG_FIELDS = ["logged_at", "item_id", "item", "dip_time", "side", "dip_low", "price_around",
+                  "avg_7d", "depth_pct", "minutes", "units", "normal_now"]
+
+
+def log_dips(results, now):
+    """
+    Append every finished dip (it bounced back) to dip_log.csv, once each, so we can later work
+    out how deep dips really go for different item prices and tune the suggested bid.
+    Never breaks a scan: any error here is ignored.
+    """
+    try:
+        seen = set()
+        if os.path.exists(DIP_LOG):
+            with open(DIP_LOG, newline="", encoding="utf-8") as f:
+                seen = {(row["item_id"], row["dip_time"]) for row in csv.DictReader(f)}
+        rows = []
+        for r in results:
+            for e in r["spikes"]:
+                if e.get("ongoing"):
+                    continue                 # not finished yet: log it once it has bounced back
+                dip_time = datetime.fromtimestamp(e["ts"]).isoformat(timespec="minutes")
+                key = (str(r["item"]["id"]), dip_time)
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append({
+                    "logged_at": datetime.fromtimestamp(now).isoformat(timespec="minutes"),
+                    "item_id": r["item"]["id"], "item": r["item"]["name"], "dip_time": dip_time,
+                    "side": e.get("side", "instasell"), "dip_low": int(e["low"]),
+                    "price_around": int(e["local"]), "avg_7d": int(r["long_base"]) if r["long_base"] else "",
+                    "depth_pct": round(e["pct"], 2), "minutes": int((e["end"] - e["start"]) / 60) + 5,
+                    "units": e["vol"], "normal_now": int(r["base"]),
+                })
+        if rows:
+            new = not os.path.exists(DIP_LOG)
+            with open(DIP_LOG, "a", newline="", encoding="utf-8") as f:
+                w = csv.DictWriter(f, fieldnames=DIP_LOG_FIELDS)
+                if new:
+                    w.writeheader()
+                w.writerows(rows)
+    except Exception as exc:  # logging is a nice-to-have
+        print(f"(couldn't write dip log: {exc})")
+
+
 def run_scan(cfg, progress=None, cache=None):
     """
     Scan the whole watchlist. progress(done, total, name) is called per item.
@@ -444,6 +491,7 @@ def run_scan(cfg, progress=None, cache=None):
         if r:
             results.append(r)
     results.sort(key=lambda r: (r["score"], r["deepest"]["pct"] if r["deepest"] else 0), reverse=True)
+    log_dips(results, now)
     return results, now
 
 
