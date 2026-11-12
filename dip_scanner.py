@@ -58,7 +58,8 @@ DEFAULT_CONFIG = {
     "min_item_pct": 5,         # cheapest item to watch, as % of your stack
     "max_offer_pct": 29,       # most one offer may use, as % of your stack (also the priciest item)
     "min_daily_volume": 25,    # trades per day, so offers can actually fill
-    "max_auto_items": 100,
+    "max_auto_items": 100,     # items per price step
+    "max_steps": 3,            # if your band has too few dips, step down to cheaper items this many times
     "max_shown": 8,            # show the best N items
 }
 
@@ -233,36 +234,35 @@ def load_watchlist(cfg, cache=None):
             print("   -", n)
 
     band = price_band(cfg)
-    auto, cheapest = [], None
+    steps = []
     if band:
+        # Your price band first. If it doesn't turn up enough dips (a big stack has few items
+        # that pricey), run_scan steps down: the band a 10x smaller stack would watch, and so on.
         lo, hi = band
         day = cached(cache, "24h", Cache.SLOW_TTL, lambda: fetch("24h", cfg)["data"])
-        in_band, below = [], []
+        liquid = []
         for sid, d in day.items():
             m = by_id.get(int(sid))
             low = d.get("avgLowPrice")
             vol = (d.get("highPriceVolume") or 0) + (d.get("lowPriceVolume") or 0)
             if m and low and low <= hi and vol >= cfg["min_daily_volume"]:
-                (in_band if low >= lo else below).append((low * vol, low, m))
-        in_band.sort(key=lambda x: x[0], reverse=True)
-        picked = in_band[:cfg["max_auto_items"]]
-        # A big stack has few items in its band: fill up with the most traded cheaper items
-        # (by gp a day), where dips actually happen, so the page still shows the biggest flips.
-        below.sort(key=lambda x: x[0], reverse=True)
-        picked += below[:cfg["max_auto_items"] - len(picked)]
-        auto = [m for _, _, m in picked]
-        cheapest = min((low for _, low, _ in picked), default=None)
+                liquid.append((low * vol, low, m))
+        liquid.sort(key=lambda x: x[0], reverse=True)
+        top, bottom = hi, lo
+        for _ in range(cfg["max_steps"]):
+            step = [(low, m) for _, low, m in liquid if bottom <= low <= top][:cfg["max_auto_items"]]
+            if step:
+                steps.append(step)
+            top, bottom = bottom, bottom / 10
 
-    seen, items = set(), []
-    for m in auto + manual:
-        if m["id"] not in seen:
-            seen.add(m["id"])
-            items.append(m)
-    cfg["_watch_info"] = {
-        "auto": len(auto), "manual": len([m for m in manual if m["id"] not in {a["id"] for a in auto}]),
-        "band": band, "cheapest": cheapest,
-    }
-    return items
+    # Groups to scan in order; your watchlist.txt items always go in the first one.
+    groups = [[m for _, m in step] for step in steps] or [[]]
+    stepped = {m["id"] for g in groups for m in g}
+    extra = [m for m in manual if m["id"] not in stepped]
+    groups[0] += list({m["id"]: m for m in extra}.values())
+    prices = {m["id"]: low for step in steps for low, m in step}
+    cfg["_watch_info"] = {"band": band, "manual": len(extra), "prices": prices}
+    return groups
 
 
 # ----------------------------------------------------------------------------- analysis
@@ -504,29 +504,41 @@ def run_scan(cfg, progress=None, cache=None):
     Scan the whole watchlist. progress(done, total, name) is called per item.
     With a cache (serve mode), rescans fetch only what's new: a few bulk requests in total.
     """
-    items = load_watchlist(cfg, cache)
+    groups = load_watchlist(cfg, cache)
     latest = fetch("latest", cfg)["data"]
     now = time.time()
     catch_up(cache, cfg, now)
     if cache is not None and not cache.synced_to:
         cache.synced_to = int(now // 300 * 300) - 300
-    results = []
-    for i, it in enumerate(items, 1):
-        if progress:
-            progress(i, len(items), it["name"])
-        recent = five_minute_series(it, cfg, cache, now)
-
-        def load_hourly(item_id=it["id"]):
-            data = fetch("timeseries", cfg, {"timestep": "1h", "id": item_id}).get("data", [])
-            time.sleep(0.15)
-            return data
-        hourly = cached(cache, ("1h", it["id"]), Cache.SLOW_TTL, load_hourly)
-        r = analyze(it, recent, latest, cfg, now, hourly)
-        if r:
-            results.append(r)
+    results, scanned = [], []
+    total = len(groups[0]) if groups else 0
+    for g, group in enumerate(groups):
+        if g and sum(r["listable"] for r in results) >= cfg["max_shown"]:
+            break                            # enough dips found: no need to step down
+        if g:
+            total += len(group)
+        for it in group:
+            scanned.append(it)
+            if progress:
+                progress(len(scanned), total, it["name"])
+            r = scan_item(it, cfg, cache, now, latest)
+            if r:
+                results.append(r)
+    cfg["_scanned"] = scanned
     results.sort(key=lambda r: (r["score"], r["deepest"]["pct"] if r["deepest"] else 0), reverse=True)
     log_dips(results, now)
     return results, now
+
+
+def scan_item(it, cfg, cache, now, latest):
+    recent = five_minute_series(it, cfg, cache, now)
+
+    def load_hourly(item_id=it["id"]):
+        data = fetch("timeseries", cfg, {"timestep": "1h", "id": item_id}).get("data", [])
+        time.sleep(0.15)
+        return data
+    hourly = cached(cache, ("1h", it["id"]), Cache.SLOW_TTL, load_hourly)
+    return analyze(it, recent, latest, cfg, now, hourly)
 
 
 # ----------------------------------------------------------------------------- HTML report
@@ -595,12 +607,14 @@ def row_html(r, cfg, now):
 def watch_text(cfg, n):
     info = cfg.get("_watch_info") or {}
     band = info.get("band")
+    scanned = cfg.get("_scanned") or []
     if not band:
-        return f"{n} items from your watchlist"
+        return f"{len(scanned) or n} items from your watchlist"
+    prices = [info["prices"][m["id"]] for m in scanned if m["id"] in info.get("prices", {})]
+    auto = len(prices)
     extra = f" + {info['manual']} from your list" if info.get("manual") else ""
-    lo = min(band[0], info.get("cheapest") or band[0])
-    return (f"{n} items: {info.get('auto', 0)} priced {gp(lo)}–{gp(band[1])} with "
-            f"{cfg['min_daily_volume']}+ trades/day{extra}")
+    rng = f"{gp(min(prices))}–{gp(max(prices))}" if prices else "-"
+    return f"{auto + info.get('manual', 0)} items: {auto} priced {rng} with {cfg['min_daily_volume']}+ trades/day{extra}"
 
 
 def build_report(results, cfg, now, toolbar=""):

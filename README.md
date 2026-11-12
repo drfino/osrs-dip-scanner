@@ -33,8 +33,9 @@ moves with the market and with your stack:
 
 - **Priced from 5% to about 29% of your stack.** At 15m: about 750k to 4.3m.
 - **25+ trades a day**, top 100 by daily gp traded.
-- **Big stack, few items that pricey?** It fills up to 100 with the most traded cheaper items, so
-  you still see the biggest flips there are, even if they use only a small part of your stack.
+- **Not enough dips in that range?** It steps down to cheaper items (the range a 10x smaller
+  stack would watch), up to twice, until it has enough dips to fill the page. With a very big
+  stack you still see the biggest flips there are, even if they use only a small part of it.
 - Items in your `watchlist.txt` are always scanned too, on top of these.
 - One item per offer: buying more of the same item just competes with your own resale.
 
