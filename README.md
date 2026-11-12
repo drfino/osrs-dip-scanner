@@ -32,8 +32,8 @@ Type your cash stack into the page (e.g. `15m`). Every scan then watches items t
 moves with the market and with your stack:
 
 - **Priced from 5% to about 29% of your stack.** At 15m: about 750k to 4.3m.
-- **25+ trades a day**, top 80 by daily gp traded.
-- **Big stack, few items that pricey?** It fills up to 80 with the next most expensive items, so
+- **25+ trades a day**, top 100 by daily gp traded.
+- **Big stack, few items that pricey?** It fills up to 100 with the next most expensive items, so
   you still see the biggest flips there are, even if they use only a small part of your stack.
 - Items in your `watchlist.txt` are always scanned too, on top of these.
 - One item per offer: buying more of the same item just competes with your own resale.

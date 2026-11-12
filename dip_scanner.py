@@ -58,7 +58,7 @@ DEFAULT_CONFIG = {
     "min_item_pct": 5,         # cheapest item to watch, as % of your stack
     "max_offer_pct": 29,       # most one offer may use, as % of your stack (also the priciest item)
     "min_daily_volume": 25,    # trades per day, so offers can actually fill
-    "max_auto_items": 80,
+    "max_auto_items": 100,
     "max_shown": 8,            # show the best N items
 }
 
