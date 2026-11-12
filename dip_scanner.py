@@ -30,6 +30,7 @@ import time
 import urllib.parse
 import urllib.request
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -40,6 +41,7 @@ REPO_ZIP = "https://github.com/drfino/osrs-dip-scanner/archive/refs/heads/master
 UPDATABLE = ("dip_scanner.py", "README.md", "watchlist.example.txt", "GE Dip Scanner.bat")
 API = "https://prices.runescape.wiki/api/v1/osrs"
 ITEM_PAGE = "https://prices.runescape.wiki/osrs/item/{}"
+SCAN_WORKERS = 4      # items fetched at once on a first scan
 GE_TAX = 0.02          # 2% sell tax
 GE_TAX_CAP = 5_000_000
 
@@ -127,7 +129,6 @@ def five_minute_series(it, cfg, cache, now):
     if cache and it["id"] in cache.five and now - cache.synced_to < Cache.MAX_GAP:
         return [cache.five[it["id"]][t] for t in sorted(cache.five[it["id"]])]
     data = fetch("timeseries", cfg, {"timestep": "5m", "id": it["id"]}).get("data", [])
-    time.sleep(0.15)  # be polite to the free API
     if cache is not None:
         cache.five[it["id"]] = {p["timestamp"]: p for p in data}
     return data
@@ -517,13 +518,18 @@ def run_scan(cfg, progress=None, cache=None):
             break                            # enough dips found: no need to step down
         if g:
             total += len(group)
-        for it in group:
-            scanned.append(it)
-            if progress:
-                progress(len(scanned), total, it["name"])
+        # A few items at a time: well inside what the wiki says its API handles.
+        lock = threading.Lock()
+
+        def one(it):
             r = scan_item(it, cfg, cache, now, latest)
-            if r:
-                results.append(r)
+            with lock:
+                scanned.append(it)
+                if progress:
+                    progress(len(scanned), total, it["name"])
+            return r
+        with ThreadPoolExecutor(max_workers=SCAN_WORKERS) as pool:
+            results += [r for r in pool.map(one, group) if r]
     cfg["_scanned"] = scanned
     results.sort(key=lambda r: (r["score"], r["deepest"]["pct"] if r["deepest"] else 0), reverse=True)
     log_dips(results, now)
@@ -534,9 +540,7 @@ def scan_item(it, cfg, cache, now, latest):
     recent = five_minute_series(it, cfg, cache, now)
 
     def load_hourly(item_id=it["id"]):
-        data = fetch("timeseries", cfg, {"timestep": "1h", "id": item_id}).get("data", [])
-        time.sleep(0.15)
-        return data
+        return fetch("timeseries", cfg, {"timestep": "1h", "id": item_id}).get("data", [])
     hourly = cached(cache, ("1h", it["id"]), Cache.SLOW_TTL, load_hourly)
     return analyze(it, recent, latest, cfg, now, hourly)
 
