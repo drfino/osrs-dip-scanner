@@ -246,9 +246,9 @@ def load_watchlist(cfg, cache=None):
                 (in_band if low >= lo else below).append((low * vol, low, m))
         in_band.sort(key=lambda x: x[0], reverse=True)
         picked = in_band[:cfg["max_auto_items"]]
-        # A big stack has few items in its band: fill up with the next most expensive items,
-        # so the page still shows the biggest flips there are.
-        below.sort(key=lambda x: x[1], reverse=True)
+        # A big stack has few items in its band: fill up with the most traded cheaper items
+        # (by gp a day), where dips actually happen, so the page still shows the biggest flips.
+        below.sort(key=lambda x: x[0], reverse=True)
         picked += below[:cfg["max_auto_items"] - len(picked)]
         auto = [m for _, _, m in picked]
         cheapest = min((low for _, low, _ in picked), default=None)
