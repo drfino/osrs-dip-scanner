@@ -233,18 +233,25 @@ def load_watchlist(cfg, cache=None):
             print("   -", n)
 
     band = price_band(cfg)
-    auto = []
+    auto, cheapest = [], None
     if band:
         lo, hi = band
         day = cached(cache, "24h", Cache.SLOW_TTL, lambda: fetch("24h", cfg)["data"])
+        in_band, below = [], []
         for sid, d in day.items():
             m = by_id.get(int(sid))
             low = d.get("avgLowPrice")
             vol = (d.get("highPriceVolume") or 0) + (d.get("lowPriceVolume") or 0)
-            if m and low and lo <= low <= hi and vol >= cfg["min_daily_volume"]:
-                auto.append((low * vol, m))
-        auto.sort(key=lambda x: x[0], reverse=True)
-        auto = [m for _, m in auto[:cfg["max_auto_items"]]]
+            if m and low and low <= hi and vol >= cfg["min_daily_volume"]:
+                (in_band if low >= lo else below).append((low * vol, low, m))
+        in_band.sort(key=lambda x: x[0], reverse=True)
+        picked = in_band[:cfg["max_auto_items"]]
+        # A big stack has few items in its band: fill up with the next most expensive items,
+        # so the page still shows the biggest flips there are.
+        below.sort(key=lambda x: x[1], reverse=True)
+        picked += below[:cfg["max_auto_items"] - len(picked)]
+        auto = [m for _, _, m in picked]
+        cheapest = min((low for _, low, _ in picked), default=None)
 
     seen, items = set(), []
     for m in auto + manual:
@@ -253,7 +260,7 @@ def load_watchlist(cfg, cache=None):
             items.append(m)
     cfg["_watch_info"] = {
         "auto": len(auto), "manual": len([m for m in manual if m["id"] not in {a["id"] for a in auto}]),
-        "band": band,
+        "band": band, "cheapest": cheapest,
     }
     return items
 
@@ -591,7 +598,8 @@ def watch_text(cfg, n):
     if not band:
         return f"{n} items from your watchlist"
     extra = f" + {info['manual']} from your list" if info.get("manual") else ""
-    return (f"{n} items: {info.get('auto', 0)} priced {gp(band[0])}–{gp(band[1])} with "
+    lo = min(band[0], info.get("cheapest") or band[0])
+    return (f"{n} items: {info.get('auto', 0)} priced {gp(lo)}–{gp(band[1])} with "
             f"{cfg['min_daily_volume']}+ trades/day{extra}")
 
 
