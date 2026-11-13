@@ -48,7 +48,9 @@ just means a quiet market.
 - **Normal now**: what it sells for today, with its 7-day average below.
 - **Deepest**: the biggest dip in the last day.
 - **Suggested bid**: where to leave your buy offer for one.
-- **Profit per flip**: what that bid makes on one item at today's price, after tax, and how many of today's dips it would have filled.
+- **Profit per flip**: what that bid makes on one item after tax, if you sell by listing it mid-range
+  (halfway between the instasell and instabuy prices, the lower of today's and the 7-day one) rather
+  than instaselling. The sale price is shown, with how many of today's dips the bid would have filled.
 - Tags: **New** (wasn't on the list last time you looked) and **Choppy price** (jumps around a lot).
 
 ## How it works

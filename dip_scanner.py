@@ -353,6 +353,19 @@ def find_spikes(pts, local, cfg, now, long_base=None):
     return spikes, rejected, stale
 
 
+def mid(p):
+    """Midway between what sellers and buyers paid in one time bucket (None if either is missing)."""
+    lo, hi = p.get("avgLowPrice"), p.get("avgHighPrice")
+    return (lo + hi) / 2 if lo and hi else None
+
+
+def long_run_mid(hourly, cfg, now):
+    """Median mid-range price over the last long_baseline_days, from 1-hour averages."""
+    since = now - cfg["long_baseline_days"] * 86400
+    mids = [mid(p) for p in hourly if p["timestamp"] >= since and mid(p)]
+    return statistics.median(mids) if len(mids) >= 24 else None
+
+
 def long_run_price(hourly, cfg, now):
     """Median instasell over the last long_baseline_days, from 1-hour averages."""
     since = now - cfg["long_baseline_days"] * 86400
@@ -390,6 +403,13 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     # high never makes a bid look better than it is.
     ref = min(normal, long_base) if long_base else normal
 
+    # Selling: you list mid-range (between the instasell and instabuy prices) and wait, rather
+    # than instaselling. Same rule: the lower of today's mid-range and the 7-day one.
+    recent_mids = [mid(p) for p in pts if p["timestamp"] >= now - 3 * 3600 and mid(p)]
+    mid_now = statistics.median(recent_mids) if len(recent_mids) >= 4 else normal
+    mid_long = long_run_mid(hourly, cfg, now)
+    sell_at = max(ref, min(mid_now, mid_long) if mid_long else mid_now)
+
     # Suggested bid: the lowest bid that would still have filled on every dip in the window
     # (or on as many as possible). A dip only fills you if it went beat_by_pct further down than
     # your bid, since sellers fill the highest bids first and other lowballers sit near the bottom.
@@ -400,7 +420,7 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     depth = min_depth
     while depth <= 30 and dumps:
         bid = price_bid(ref * (1 - depth / 100))
-        profit = sell_after_tax(ref) - bid
+        profit = sell_after_tax(sell_at) - bid
         hit = [e for e in dumps if e["low"] <= bid * (1 - beat / 100)]
         if hit and profit > 0 and (pick is None or len(hit) >= pick["fills"]):
             pick = {"bid": bid, "profit": profit, "profit_pct": profit / bid * 100, "depth": depth,
@@ -420,7 +440,7 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     recent_dump = any(now - e["ts"] <= cfg["spike_max_age_hours"] * 3600 for e in spikes)
     return {
         "listable": bool(pick) and recent_dump,
-        "item": item, "base": normal, "long_base": long_base, "ref": ref, "stale": stale,
+        "item": item, "base": normal, "long_base": long_base, "ref": ref, "sell_at": sell_at, "stale": stale,
         "spikes": spikes, "rejected": rejected, "deepest": deepest,
         "pick": pick, "score": score, "now_low": now_low, "now_low_ts": now_low_ts,
         "now_pct": now_pct, "pts": pts, "noise": noise, "choppy": choppy,
@@ -607,7 +627,7 @@ def row_html(r, cfg, now):
   <td class="num">{gp(r['base'])}{f"<div class='sub'>7d avg {gp(r['long_base'])}</div>" if r.get('long_base') else ''}</td>
   <td class="num">{f"-{d['pct']:.1f}%<div class='sub'>{gp(d['low'])} · {ago(d['ts'], now)}</div>" if d else '<span class="sub">none</span>'}</td>
   <td class="num bidcell">{f"{p['bid']:,}<div class='sub'>{p['depth']:.1f}% under normal</div>{qty_html}" if p else '<span class="sub">too shallow to bid</span>'}</td>
-  <td class="num evcell">{f"{gp(p['profit'])}<div class='sub'>{p['profit_pct']:.1f}% after tax</div><div class='sub'>would have filled {p['fills']}× today</div>" if p else '-'}</td>
+  <td class="num evcell">{f"{gp(p['profit'])}<div class='sub'>{p['profit_pct']:.1f}% after tax, selling at ~{gp(r['sell_at'])}</div><div class='sub'>would have filled {p['fills']}× today</div>" if p else '-'}</td>
 </tr>"""
 
 
@@ -699,7 +719,7 @@ th.num {{ text-align:right }}
 <div class="legend">
 <p>These items recently <b>dipped</b> far below their normal price, best money-makers first.
 Leave a buy offer for one at the <b>Suggested bid</b>; it fills when the next dip hits.
-Once it fills, sell at around <b>Normal now</b>. Check back daily, and move any offer that hasn't filled in a day or two.</p>
+Once it fills, list it to sell at the price under <b>Profit per flip</b>, between the instasell and instabuy prices. Check back daily, and move any offer that hasn't filled in a day or two.</p>
 <p>Chart: <i style="background:var(--sell)"></i>instasell <i style="background:var(--buy)"></i>instabuy
 <i style="border-top:1px dashed var(--muted)"></i>normal price <i style="border-top:2px dashed var(--gold)"></i>your bid, red dots are dips.</p>
 </div>
