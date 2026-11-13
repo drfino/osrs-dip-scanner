@@ -3,7 +3,7 @@
 OSRS GE Dip Scanner: finds instasell dips worth bidding on.
 
 Double-click "GE Dip Scanner.bat" (or run: python dip_scanner.py). It opens a local page
-(http://localhost:8765) with a Scan button and a cash stack box, and rescans every 10 minutes.
+(http://localhost:8765, or this PC's address from a phone on the same Wi-Fi) with a Scan button and a cash stack box, and rescans every 10 minutes.
 
 A "dip" is a short, sharp drop that bounces back, measured against the price AROUND it
 (the median instasell of the surrounding 90 minutes), so slow drifts and noise don't count:
@@ -20,6 +20,7 @@ import csv
 import io
 import json
 import shutil
+import socket
 import subprocess
 import zipfile
 import threading
@@ -760,7 +761,17 @@ Once it fills, list it to sell at the price under <b>Profit per flip</b>, betwee
 PORT = 8765
 URL = f"http://localhost:{PORT}"
 AUTO_SCAN_MINUTES = 10
-IDLE_SHUTDOWN_HOURS = 3
+IDLE_SHUTDOWN_HOURS = 12
+
+
+def phone_url():
+    """This PC's address on your home network, for opening the page on a phone. None if offline."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("192.0.2.1", 80))      # picks the network route; sends nothing
+            return f"http://{s.getsockname()[0]}:{PORT}"
+    except OSError:
+        return None
 
 TOOLBAR = """<div class="bar">
   <button id="scan">Scan now</button>
@@ -934,6 +945,8 @@ class _Handler(BaseHTTPRequestHandler):
             cfg = load_config()
             status = (f"Last scan {datetime.fromtimestamp(_State.last):%H:%M} · rescans every "
                       f"{AUTO_SCAN_MINUTES} min" if _State.last else "")
+            if self.client_address[0] == "127.0.0.1" and phone_url():
+                status += f" · on your phone: {phone_url()}"
             bar = (TOOLBAR.replace("__CASH__", gp(cfg["cash_stack"]) if cfg.get("cash_stack") else "")
                    .replace("__AUTO__", str(AUTO_SCAN_MINUTES))
                    .replace("__STATUS__", escape(status))
@@ -1009,7 +1022,8 @@ def serve(open_browser=True, update=True):
                          + (["--no-open"] if not open_browser else []))
         os._exit(0)
     try:
-        server = ThreadingHTTPServer(("127.0.0.1", PORT), _Handler)
+        # Listen on the home network too, so a phone on the same Wi-Fi can open the page.
+        server = ThreadingHTTPServer(("0.0.0.0", PORT), _Handler)
     except OSError:
         # Already running (or the port is taken): just open the page.
         print(f"GE Dip Scanner is already running. Opening {URL}")
@@ -1026,6 +1040,8 @@ def serve(open_browser=True, update=True):
     threading.Thread(target=idle_watch, daemon=True).start()
 
     print(f"GE Dip Scanner is running at {URL}")
+    if phone_url():
+        print(f"On your phone (same Wi-Fi): {phone_url()}")
     print("Close this window to stop it. It also stops by itself after "
           f"{IDLE_SHUTDOWN_HOURS} hours of nobody looking at the page.")
     if not _needs_setup(load_config()):

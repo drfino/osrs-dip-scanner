@@ -24,7 +24,21 @@ Double-click **GE Dip Scanner.bat**. Your browser opens **http://localhost:8765*
 - **Cash stack**: see below.
 - Already running? Double-clicking the shortcut again just reopens the page. You can also bookmark it.
 - A small minimized window titled "GE Dip Scanner" keeps it running. Close it to stop, or it stops
-  on its own after 3 hours with the page closed.
+  on its own after 12 hours with the page closed.
+
+### On your phone
+
+The scanner runs on your PC, and your phone can open the same page:
+
+1. Start the scanner on your PC. The first time, Windows may ask whether to allow Python on your
+   network: tick **Private networks** and click **Allow**.
+2. The scanner's window, and the top of the page on your PC, show an address like
+   `http://192.168.1.23:8765`. Open that in your phone's browser while it's on the same Wi-Fi.
+   Bookmark it or add it to your home screen.
+
+**Away from home:** install [Tailscale](https://tailscale.com) (free) on your PC and your phone and
+sign in to both with the same account. Then open `http://<your PC's name>:8765` on your phone from
+anywhere. Your PC must be on with the scanner running.
 
 ### Let your cash stack pick the items
 
