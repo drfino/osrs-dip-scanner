@@ -62,7 +62,8 @@ only shows if it dipped in the last 18 hours.
 The **suggested bid** is just above the most recent dip (1% above its low). A dip means someone sold
 through every normal buyer and reached a lowball offer at that price, which is now used up. Bidding
 just above it puts you at the front of what's left of the lowball queue, so the next big dump fills you
-first. Older dips are ignored: they say nothing about the queue now. Bids land just above round
+first. Older dips are ignored: they say nothing about the queue now. Dips within an hour of each
+other count as one (a crash, then a step on the way back up), and the bid goes off its lowest point. Bids land just above round
 numbers (1,004,111, not 1,000,000).
 
 The list is sorted by profit per flip. Nothing is modelled or weighted: the dip count and how long ago it dipped are shown so you can judge them yourself.

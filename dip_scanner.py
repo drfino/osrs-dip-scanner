@@ -417,7 +417,15 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     pick = None
     budget = offer_budget(cfg)
     if spikes:
-        latest_dip = max(spikes, key=lambda e: e["ts"])
+        # One dump often shows up as several dip windows (the crash, then a step on the way back
+        # up), so dips within spike_recover_minutes of each other are one event: use its lowest point.
+        events = []
+        for e in sorted(spikes, key=lambda e: e["ts"]):
+            if events and e["start"] - events[-1][-1]["end"] <= cfg["spike_recover_minutes"] * 60:
+                events[-1].append(e)
+            else:
+                events.append([e])
+        latest_dip = min(events[-1], key=lambda e: e["low"])
         bid = price_bid(latest_dip["low"] / (1 - beat / 100))
         profit = sell_after_tax(sell_at) - bid
         if profit / bid * 100 >= cfg["min_profit_pct"]:
