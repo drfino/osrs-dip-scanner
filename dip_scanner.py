@@ -63,7 +63,6 @@ DEFAULT_CONFIG = {
     "max_auto_items": 75,      # the busiest N items (by trades a day) per price step
     "max_steps": 3,            # if your band has too few dips, step down to cheaper items this many times
     "max_shown": 20,           # show the best N items
-    "freak_pct": 40,           # a dip this far below normal is flagged as a freak trade
 }
 
 
@@ -425,7 +424,6 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
         "spikes": spikes, "rejected": rejected, "deepest": deepest,
         "pick": pick, "score": score, "now_low": now_low, "now_low_ts": now_low_ts,
         "now_pct": now_pct, "pts": pts, "noise": noise, "choppy": choppy,
-        "freak": bool(deepest) and deepest["pct"] >= cfg["freak_pct"],
     }
 
 
@@ -598,12 +596,9 @@ def row_html(r, cfg, now):
     it, d, p = r["item"], r["deepest"], r["pick"]
     budget = offer_budget(cfg)
     qty_html = "<div class='sub over'>over one offer's budget</div>" if p and budget and p["bid"] > budget else ""
-    chips = []
-    if r.get("freak"):
-        chips.append(f'<span class="chip freak" title="The deepest dip was {d['pct']:.0f}% under normal: probably a one-off misclick or panic sale. Big profit if it happens again, but it rarely does.">Freak trade</span>')
+    live = ""
     if r["choppy"]:
-        chips.append(f'<span class="chip warn" title="Normally moves about {r['noise']:.1f}% every 5 min">Choppy price</span>')
-    live = " ".join(chips)
+        live = f'<span class="chip warn" title="Normally moves about {r['noise']:.1f}% every 5 min">Choppy price</span>'
     return f"""
 <tr data-id="{it['id']}">
   <td class="name"><div class="namewrap">{icon_html(it)}<div><a href="{ITEM_PAGE.format(it['id'])}" target="_blank" rel="noopener">{escape(it['name'])}</a>
@@ -680,7 +675,6 @@ th.num {{ text-align:right }}
 .sub.over {{ color:var(--warn) }}
 .chip {{ display:inline-block; margin-top:4px; padding:1px 7px; border-radius:99px; font-size:11px; font-weight:600 }}
 .chip.warn {{ border:1px solid var(--warn); color:var(--warn) }}
-.chip.freak {{ border:1px solid var(--dip); color:var(--dip) }}
 .chip.new {{ background:var(--buy); color:#0b1a10; margin-right:4px }}
 .spark {{ display:block; overflow:visible }}
 .spark polyline {{ fill:none; stroke-width:1.3; stroke-linejoin:round }}

@@ -49,9 +49,7 @@ just means a quiet market.
 - **Deepest**: the biggest dip in the last day.
 - **Suggested bid**: where to leave your buy offer for one.
 - **Profit per flip**: what that bid makes on one item at today's price, after tax, and how many of today's dips it would have filled.
-- Tags: **New** (wasn't on the list last time you looked), **Freak trade** (its deepest dip was 40% or
-  more under normal: probably a misclick or panic sale, worth a cheeky bid but it rarely repeats) and
-  **Choppy price** (jumps around a lot).
+- Tags: **New** (wasn't on the list last time you looked) and **Choppy price** (jumps around a lot).
 
 ## How it works
 
