@@ -54,15 +54,16 @@ DEFAULT_CONFIG = {
     "spike_max_minutes": 30,
     "spike_recover_minutes": 60,
     "beat_by_pct": 3,          # a past dip only counts as filling your bid if it went this much further down
-    "min_profit_pct": 4,       # never suggest a bid that leaves less than this after tax
+    "min_profit_pct": 2,       # never suggest a bid that leaves less than this after tax
     # Auto watchlist from your cash stack (0 = only use watchlist.txt).
     "cash_stack": 0,
     "min_item_pct": 5,         # cheapest item to watch, as % of your stack
     "max_offer_pct": 29,       # most one offer may use, as % of your stack (also the priciest item)
     "min_daily_volume": 25,    # trades per day, so offers can actually fill
-    "max_auto_items": 100,     # items per price step
+    "max_auto_items": 50,      # the busiest N items (by trades a day) per price step
     "max_steps": 3,            # if your band has too few dips, step down to cheaper items this many times
-    "max_shown": 8,            # show the best N items
+    "max_shown": 20,           # show the best N items
+    "freak_pct": 40,           # a dip this far below normal is flagged as a freak trade
 }
 
 
@@ -247,8 +248,8 @@ def load_watchlist(cfg, cache=None):
             low = d.get("avgLowPrice")
             vol = (d.get("highPriceVolume") or 0) + (d.get("lowPriceVolume") or 0)
             if m and low and low <= hi and vol >= cfg["min_daily_volume"]:
-                liquid.append((low * vol, low, m))
-        liquid.sort(key=lambda x: x[0], reverse=True)
+                liquid.append((vol, low, m))
+        liquid.sort(key=lambda x: x[0], reverse=True)    # busiest first: their dips refill most often
         top, bottom = hi, lo
         for _ in range(cfg["max_steps"]):
             step = [(low, m) for _, low, m in liquid if bottom <= low <= top][:cfg["max_auto_items"]]
@@ -262,7 +263,8 @@ def load_watchlist(cfg, cache=None):
     extra = [m for m in manual if m["id"] not in stepped]
     groups[0] += list({m["id"]: m for m in extra}.values())
     prices = {m["id"]: low for step in steps for low, m in step}
-    cfg["_watch_info"] = {"band": band, "manual": len(extra), "prices": prices}
+    volumes = {m["id"]: vol for vol, _, m in liquid} if band else {}
+    cfg["_watch_info"] = {"band": band, "manual": len(extra), "prices": prices, "volumes": volumes}
     return groups
 
 
@@ -423,6 +425,7 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
         "spikes": spikes, "rejected": rejected, "deepest": deepest,
         "pick": pick, "score": score, "now_low": now_low, "now_low_ts": now_low_ts,
         "now_pct": now_pct, "pts": pts, "noise": noise, "choppy": choppy,
+        "freak": bool(deepest) and deepest["pct"] >= cfg["freak_pct"],
     }
 
 
@@ -432,11 +435,11 @@ DIP_LOG = os.path.join(HERE, "dip_log.csv")
 DIP_LOG_FIELDS = ["logged_at", "item_id", "item", "dip_time", "side", "dip_low", "price_around",
                   "avg_7d", "depth_pct", "minutes", "units", "normal_now",
                   "window_hours", "next_low", "next_low_hours_after", "next_low_vs_dip_pct",
-                  "next_low_vs_around_pct"]
+                  "next_low_vs_around_pct", "daily_volume"]
 RELATED_HOURS = 6   # a later low within this many hours of a dip counts as the same buy window
 
 
-def log_dips(results, now):
+def log_dips(results, now, volumes=None):
     """
     Append finished dips to dip_log.csv, once each. A dip is logged once RELATED_HOURS have
     passed since it ended, with the lowest trade in those hours (next_low): the price a bid placed
@@ -444,6 +447,7 @@ def log_dips(results, now):
     logs next_low_vs_dip_pct = +20. Later than that, dips are unrelated and aren't compared.
     Experimental: nothing on the page uses it. Never breaks a scan: errors are only printed.
     """
+    volumes = volumes or {}
     try:
         seen = set()
         if os.path.exists(DIP_LOG):
@@ -482,6 +486,7 @@ def log_dips(results, now):
                     "price_around": int(e["local"]), "avg_7d": int(r["long_base"]) if r["long_base"] else "",
                     "depth_pct": round(e["pct"], 2), "minutes": int((e["end"] - e["start"]) / 60) + 5,
                     "units": e["vol"], "normal_now": int(r["base"]), "window_hours": RELATED_HOURS,
+                    "daily_volume": volumes.get(r["item"]["id"], ""),
                 }
                 if nxt:
                     row.update({"next_low": int(nxt[0]),
@@ -532,7 +537,7 @@ def run_scan(cfg, progress=None, cache=None):
             results += [r for r in pool.map(one, group) if r]
     cfg["_scanned"] = scanned
     results.sort(key=lambda r: (r["score"], r["deepest"]["pct"] if r["deepest"] else 0), reverse=True)
-    log_dips(results, now)
+    log_dips(results, now, (cfg.get("_watch_info") or {}).get("volumes"))
     return results, now
 
 
@@ -593,9 +598,12 @@ def row_html(r, cfg, now):
     it, d, p = r["item"], r["deepest"], r["pick"]
     budget = offer_budget(cfg)
     qty_html = "<div class='sub over'>over one offer's budget</div>" if p and budget and p["bid"] > budget else ""
-    live = ""
+    chips = []
+    if r.get("freak"):
+        chips.append(f'<span class="chip freak" title="The deepest dip was {d['pct']:.0f}% under normal: probably a one-off misclick or panic sale. Big profit if it happens again, but it rarely does.">Freak trade</span>')
     if r["choppy"]:
-        live = f'<span class="chip warn" title="Normally moves about {r['noise']:.1f}% every 5 min">Choppy price</span>'
+        chips.append(f'<span class="chip warn" title="Normally moves about {r['noise']:.1f}% every 5 min">Choppy price</span>')
+    live = " ".join(chips)
     return f"""
 <tr data-id="{it['id']}">
   <td class="name"><div class="namewrap">{icon_html(it)}<div><a href="{ITEM_PAGE.format(it['id'])}" target="_blank" rel="noopener">{escape(it['name'])}</a>
@@ -672,6 +680,7 @@ th.num {{ text-align:right }}
 .sub.over {{ color:var(--warn) }}
 .chip {{ display:inline-block; margin-top:4px; padding:1px 7px; border-radius:99px; font-size:11px; font-weight:600 }}
 .chip.warn {{ border:1px solid var(--warn); color:var(--warn) }}
+.chip.freak {{ border:1px solid var(--dip); color:var(--dip) }}
 .chip.new {{ background:var(--buy); color:#0b1a10; margin-right:4px }}
 .spark {{ display:block; overflow:visible }}
 .spark polyline {{ fill:none; stroke-width:1.3; stroke-linejoin:round }}

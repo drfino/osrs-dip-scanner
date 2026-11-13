@@ -32,7 +32,8 @@ Type your cash stack into the page (e.g. `15m`). Every scan then watches items t
 moves with the market and with your stack:
 
 - **Priced from 5% to about 29% of your stack.** At 15m: about 750k to 4.3m.
-- **25+ trades a day**, top 100 by daily gp traded.
+- **The 50 busiest items** in that range, by trades a day. Busy items get dumped on often, so
+  bids on them actually fill. Rarely traded items are left out even if they had a big dip.
 - **Not enough dips in that range?** It steps down to cheaper items (the range a 10x smaller
   stack would watch), up to twice, until it has enough dips to fill the page. With a very big
   stack you still see the biggest flips there are, even if they use only a small part of it.
@@ -41,18 +42,20 @@ moves with the market and with your stack:
 
 Leave the cash stack empty to scan only your `watchlist.txt`.
 
-What the page shows: the **best 8 items worth a bid**, ranked by profit per flip. A short list
+What the page shows: the **best 20 items worth a bid**, ranked by profit per flip. A short list
 just means a quiet market.
 
 - **Normal now**: what it sells for today, with its 7-day average below.
 - **Deepest**: the biggest dip in the last day.
 - **Suggested bid**: where to leave your buy offer for one.
 - **Profit per flip**: what that bid makes on one item at today's price, after tax, and how many of today's dips it would have filled.
-- Tags: **New** (wasn't on the list last time you looked) and **Choppy price** (jumps around a lot).
+- Tags: **New** (wasn't on the list last time you looked), **Freak trade** (its deepest dip was 40% or
+  more under normal: probably a misclick or panic sale, worth a cheeky bid but it rarely repeats) and
+  **Choppy price** (jumps around a lot).
 
 ## How it works
 
-A **dip** is a 5-minute trade (an instasell, or an instabuy: a seller who listed cheap with no buy offers above them) at least 9% below both the price around it and the 7-day average,
+A **dip** is a 5-minute trade (an instasell, or an instabuy: a seller who listed cheap with no buy offers above them) at least 7% below both the price around it and the 7-day average,
 lasting 30 minutes or less and bouncing back within an hour. Slow price drops don't count, and an item
 only shows if it dipped in the last 18 hours.
 
@@ -67,7 +70,7 @@ It's an estimate from one day: check back daily and move offers that stopped fil
 ## Dip log
 
 Experimental, and nothing on the page uses it yet. Scans write each finished dip to `dip_log.csv`
-next to the scanner, once per dip: the item, when, how deep, how long it lasted, how many sold,
+next to the scanner, once per dip: the item, when, how deep, how long it lasted, how many sold, the item's daily volume,
 and instasell or instabuy.
 
 A dip is logged 6 hours after it ends, with the **lowest price in those 6 hours** (`next_low`):
@@ -83,10 +86,11 @@ The page covers the cash stack. For anything else, create `config.json` next to 
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `max_shown` | 8 | How many items to show. |
+| `max_shown` | 20 | How many items to show. |
 | `beat_by_pct` | 3 | How far a dip must go past your bid to count as a fill. Higher = safer bids, less profit. |
-| `min_profit_pct` | 4 | Least profit to suggest, after tax. |
-| `min_daily_volume` | 25 | Trades per day an item needs to be picked. |
+| `min_profit_pct` | 2 | Least profit to suggest, after tax. Also sets how deep a dip must be (this + 2% tax + `beat_by_pct`). |
+| `max_auto_items` | 50 | How many of the busiest items to watch in each price range. |
+| `min_daily_volume` | 25 | Trades per day an item needs to be picked at all. |
 | `min_item_pct` / `max_offer_pct` | 5 / 29 | Cheapest and priciest items to watch, as % of your stack. |
 
 Edit `watchlist.txt` to always include specific items (names exactly as on the prices site).
