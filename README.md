@@ -50,7 +50,7 @@ just means a quiet market.
 - **Suggested bid**: where to leave your buy offer for one.
 - **Profit per flip**: what that bid makes on one item after tax, if you sell by listing it mid-range
   (halfway between the instasell and instabuy prices, the lower of today's and the 7-day one) rather
-  than instaselling. The sale price is shown, with how many of today's dips the bid would have filled.
+  than instaselling. The sale price is shown, and when the dip the bid is based on happened.
 - Tags: **New** (wasn't on the list last time you looked) and **Choppy price** (jumps around a lot).
 
 ## How it works
@@ -59,9 +59,11 @@ A **dip** is a 5-minute trade (an instasell, or an instabuy: a seller who listed
 lasting 30 minutes or less and bouncing back within an hour. Slow price drops don't count, and an item
 only shows if it dipped in the last 18 hours.
 
-The **suggested bid** is the lowest bid that would still have filled on every dip in the last 18 hours. A dip only
-counts as filling you if it went 1% below your bid, because sellers fill the highest bids first and other
-lowballers sit just above the bottom. Bids land just above round numbers (1,004,111, not 1,000,000).
+The **suggested bid** is just above the most recent dip (1% above its low). A dip means someone sold
+through every normal buyer and reached a lowball offer at that price, which is now used up. Bidding
+just above it puts you at the front of what's left of the lowball queue, so the next big dump fills you
+first. Older dips are ignored: they say nothing about the queue now. Bids land just above round
+numbers (1,004,111, not 1,000,000).
 
 The list is sorted by profit per flip. Nothing is modelled or weighted: the dip count and how long ago it dipped are shown so you can judge them yourself.
 
@@ -87,7 +89,7 @@ The page covers the cash stack. For anything else, create `config.json` next to 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `max_shown` | 20 | How many items to show. |
-| `beat_by_pct` | 1 | How far a dip must go past your bid to count as a fill. Higher = safer bids, less profit. |
+| `beat_by_pct` | 1 | How far above the latest dip's low to bid, to get ahead of other lowballers. Higher = fills a bit sooner, less profit. |
 | `min_profit_pct` | 2 | Least profit to suggest, after tax. Also sets how deep a dip must be (this + 2% tax + `beat_by_pct`). |
 | `max_auto_items` | 75 | How many of the busiest items to watch in each price range. |
 | `min_daily_volume` | 25 | Trades per day an item needs to be picked at all. |

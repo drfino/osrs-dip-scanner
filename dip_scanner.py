@@ -53,7 +53,7 @@ DEFAULT_CONFIG = {
     "choppy_noise_pct": 3,
     "spike_max_minutes": 30,
     "spike_recover_minutes": 60,
-    "beat_by_pct": 1,          # a past dip only counts as filling your bid if it went this much further down
+    "beat_by_pct": 1,          # bid this far above the latest dip's low, ahead of other lowballers
     "min_profit_pct": 2,       # never suggest a bid that leaves less than this after tax
     # Auto watchlist from your cash stack (0 = only use watchlist.txt).
     "cash_stack": 0,
@@ -410,22 +410,19 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     mid_long = long_run_mid(hourly, cfg, now)
     sell_at = max(ref, min(mid_now, mid_long) if mid_long else mid_now)
 
-    # Suggested bid: the lowest bid that would still have filled on every dip in the window
-    # (or on as many as possible). A dip only fills you if it went beat_by_pct further down than
-    # your bid, since sellers fill the highest bids first and other lowballers sit near the bottom.
-    # Nothing modelled: it's what today's dips actually reached.
-    dumps = spikes
+    # Suggested bid: just above the most recent dip. A dip means a dump ran through every normal
+    # buyer and reached a lowball offer at that price, which is now used up. Bidding just above it
+    # puts you at the front of what's left of the lowball queue, ahead of the next dump. Older dips
+    # say nothing about the queue now. beat_by_pct is the small cushion over other lowballers.
     pick = None
     budget = offer_budget(cfg)
-    depth = min_depth
-    while depth <= 30 and dumps:
-        bid = price_bid(ref * (1 - depth / 100))
+    if spikes:
+        latest_dip = max(spikes, key=lambda e: e["ts"])
+        bid = price_bid(latest_dip["low"] / (1 - beat / 100))
         profit = sell_after_tax(sell_at) - bid
-        hit = [e for e in dumps if e["low"] <= bid * (1 - beat / 100)]
-        if hit and profit > 0 and (pick is None or len(hit) >= pick["fills"]):
-            pick = {"bid": bid, "profit": profit, "profit_pct": profit / bid * 100, "depth": depth,
-                    "fills": len(hit)}
-        depth += 0.5
+        if profit / bid * 100 >= cfg["min_profit_pct"]:
+            pick = {"bid": bid, "profit": profit, "profit_pct": profit / bid * 100,
+                    "depth": (ref - bid) / ref * 100, "dip": latest_dip}
     # Ranked by profit per flip. The dip count and age are on the page for you to judge.
     score = pick["profit"] if pick else 0
     if pick and budget and pick["bid"] > budget:
@@ -627,7 +624,7 @@ def row_html(r, cfg, now):
   <td class="num">{gp(r['base'])}{f"<div class='sub'>7d avg {gp(r['long_base'])}</div>" if r.get('long_base') else ''}</td>
   <td class="num">{f"-{d['pct']:.1f}%<div class='sub'>{gp(d['low'])} · {ago(d['ts'], now)}</div>" if d else '<span class="sub">none</span>'}</td>
   <td class="num bidcell">{f"{p['bid']:,}<div class='sub'>{p['depth']:.1f}% under normal</div>{qty_html}" if p else '<span class="sub">too shallow to bid</span>'}</td>
-  <td class="num evcell">{f"{gp(p['profit'])}<div class='sub'>{p['profit_pct']:.1f}% after tax, selling at ~{gp(r['sell_at'])}</div><div class='sub'>would have filled {p['fills']}× today</div>" if p else '-'}</td>
+  <td class="num evcell">{f"{gp(p['profit'])}<div class='sub'>{p['profit_pct']:.1f}% after tax, selling at ~{gp(r['sell_at'])}</div><div class='sub'>bid just above the dip {ago(p['dip']['ts'], now)}</div>" if p else '-'}</td>
 </tr>"""
 
 
