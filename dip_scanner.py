@@ -53,14 +53,14 @@ DEFAULT_CONFIG = {
     "choppy_noise_pct": 3,
     "spike_max_minutes": 30,
     "spike_recover_minutes": 60,
-    "beat_by_pct": 3,          # a past dip only counts as filling your bid if it went this much further down
+    "beat_by_pct": 1,          # a past dip only counts as filling your bid if it went this much further down
     "min_profit_pct": 2,       # never suggest a bid that leaves less than this after tax
     # Auto watchlist from your cash stack (0 = only use watchlist.txt).
     "cash_stack": 0,
     "min_item_pct": 5,         # cheapest item to watch, as % of your stack
     "max_offer_pct": 29,       # most one offer may use, as % of your stack (also the priciest item)
     "min_daily_volume": 25,    # trades per day, so offers can actually fill
-    "max_auto_items": 50,      # the busiest N items (by trades a day) per price step
+    "max_auto_items": 75,      # the busiest N items (by trades a day) per price step
     "max_steps": 3,            # if your band has too few dips, step down to cheaper items this many times
     "max_shown": 20,           # show the best N items
     "freak_pct": 40,           # a dip this far below normal is flagged as a freak trade

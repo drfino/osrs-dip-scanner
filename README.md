@@ -32,7 +32,7 @@ Type your cash stack into the page (e.g. `15m`). Every scan then watches items t
 moves with the market and with your stack:
 
 - **Priced from 5% to about 29% of your stack.** At 15m: about 750k to 4.3m.
-- **The 50 busiest items** in that range, by trades a day. Busy items get dumped on often, so
+- **The 75 busiest items** in that range, by trades a day. Busy items get dumped on often, so
   bids on them actually fill. Rarely traded items are left out even if they had a big dip.
 - **Not enough dips in that range?** It steps down to cheaper items (the range a 10x smaller
   stack would watch), up to twice, until it has enough dips to fill the page. With a very big
@@ -55,12 +55,12 @@ just means a quiet market.
 
 ## How it works
 
-A **dip** is a 5-minute trade (an instasell, or an instabuy: a seller who listed cheap with no buy offers above them) at least 7% below both the price around it and the 7-day average,
+A **dip** is a 5-minute trade (an instasell, or an instabuy: a seller who listed cheap with no buy offers above them) at least 5% below both the price around it and the 7-day average,
 lasting 30 minutes or less and bouncing back within an hour. Slow price drops don't count, and an item
 only shows if it dipped in the last 18 hours.
 
 The **suggested bid** is the lowest bid that would still have filled on every dip in the last 18 hours. A dip only
-counts as filling you if it went 3% below your bid, because sellers fill the highest bids first and other
+counts as filling you if it went 1% below your bid, because sellers fill the highest bids first and other
 lowballers sit just above the bottom. Bids land just above round numbers (1,004,111, not 1,000,000).
 
 The list is sorted by profit per flip. Nothing is modelled or weighted: the dip count and how long ago it dipped are shown so you can judge them yourself.
@@ -87,9 +87,9 @@ The page covers the cash stack. For anything else, create `config.json` next to 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `max_shown` | 20 | How many items to show. |
-| `beat_by_pct` | 3 | How far a dip must go past your bid to count as a fill. Higher = safer bids, less profit. |
+| `beat_by_pct` | 1 | How far a dip must go past your bid to count as a fill. Higher = safer bids, less profit. |
 | `min_profit_pct` | 2 | Least profit to suggest, after tax. Also sets how deep a dip must be (this + 2% tax + `beat_by_pct`). |
-| `max_auto_items` | 50 | How many of the busiest items to watch in each price range. |
+| `max_auto_items` | 75 | How many of the busiest items to watch in each price range. |
 | `min_daily_volume` | 25 | Trades per day an item needs to be picked at all. |
 | `min_item_pct` / `max_offer_pct` | 5 / 29 | Cheapest and priciest items to watch, as % of your stack. |
 
