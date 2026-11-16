@@ -7,11 +7,11 @@ own flipping.
 
 ## How to use it
 
-1. Bid at the Buy at price.
-2. When it fills, sell at the Sell at price.
-3. If it doesn't fill in a day or two, try another item.
+1. Put bids on a few items at once, at their Buy at prices.
+2. Check back now and then. When one fills, sell it at whatever it's going for then.
+3. Rescan once in a while and move your bids to what's on the list.
 
-Profit is after the 2% GE tax.
+Sell at and Profit are estimates from current prices. Profit is after the 2% GE tax.
 
 ## Setup (Windows, once)
 
