@@ -754,7 +754,6 @@ bids to what's on the list.</p>
 PORT = 8765
 URL = f"http://localhost:{PORT}"
 AUTO_SCAN_MINUTES = 10
-IDLE_SHUTDOWN_HOURS = 12
 
 
 def phone_url():
@@ -917,7 +916,6 @@ class _State:
     error = ""
     html = ""
     last = 0
-    last_request = time.time()
     cache = Cache()
 
 
@@ -972,7 +970,6 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(200, json.dumps(obj), "application/json")
 
     def do_GET(self):
-        _State.last_request = time.time()
         if self.path == "/status":
             self._json({"running": _State.running, "done": _State.done, "total": _State.total,
                         "name": _State.name, "error": _State.error, "last": _State.last})
@@ -1004,7 +1001,6 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(404, "Not found", "text/plain")
 
     def do_POST(self):
-        _State.last_request = time.time()
         if self.path == "/scan":
             _start_scan()
             self._json({"ok": True})
@@ -1079,19 +1075,10 @@ def serve(open_browser=True, update=True):
             webbrowser.open(URL)
         return
 
-    def idle_watch():
-        while True:
-            time.sleep(60)
-            if time.time() - _State.last_request > IDLE_SHUTDOWN_HOURS * 3600:
-                print("No one has looked at the page for a while. Stopping.")
-                os._exit(0)
-    threading.Thread(target=idle_watch, daemon=True).start()
-
     print(f"GE Dip Scanner is running at {URL}")
     if phone_url():
         print(f"On your phone (same Wi-Fi): {phone_url()}")
-    print("Close this window to stop it. It also stops by itself after "
-          f"{IDLE_SHUTDOWN_HOURS} hours of nobody looking at the page.")
+    print("Close this window to stop it.")
     if not _needs_setup(load_config()):
         _start_scan()               # first launch waits for your cash stack instead
     if open_browser:

@@ -43,8 +43,7 @@ Your PC has to be on with the scanner running.
 - It looks at items priced between 5% and 40% of your cash stack that trade at least 25 times a
   day, and shows the 10 with the most profit.
 - While the page is open it checks again every 10 minutes.
-- To stop it, close the small **GE Dip Scanner** window. It also stops by itself 12 hours after
-  you close the page.
+- To stop it, close the small **GE Dip Scanner** window.
 - Prices come from the [OSRS Wiki's real-time prices](https://prices.runescape.wiki).
 
 <details>
