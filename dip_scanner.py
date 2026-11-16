@@ -704,14 +704,14 @@ th.num {{ text-align:right }}
 <main>
 {toolbar}
 <div class="legend">
-<p><b>What this is:</b> items worth a lowball bid right now, most profit first.</p>
-<p><b>How it works:</b> most items only have a few buy offers near the normal price. When someone
-sells fast and uses those up, the rest of their sale falls through to the lowball offers below, and
-the price dips. This finds items where that happened recently.</p>
-<p><b>How to use it:</b> put in a buy offer for one at the <b>Buy at</b> price. It's just above the
-last lowball that filled, so you're first in line for the next fast seller. When it fills, sell it
-at the <b>Sell at</b> price. <b>Profit</b> is per item after the 2% GE tax. If a bid hasn't filled
-in a day or two, try another item.</p>
+<p>This page lists items worth a lowball bid right now, with the most profitable at the top.</p>
+<p>Most items only have a few buy offers near their normal price. When someone sells more than those
+offers can take, the rest goes to the lowball offers below, and the price drops for a few minutes.
+The scanner looks for items where this happened recently.</p>
+<p>To use it, put in a buy offer for one of an item at the Buy at price. That's a little above the
+last lowball that filled, so your offer is ahead of the other lowballs next time. When it fills,
+sell it at the Sell at price. Profit is per item after the 2% GE tax. If an offer hasn't filled
+after a day or two, cancel it and try another item.</p>
 <p>Chart of the last 24 hours: <i style="background:var(--sell)"></i>price when players sell fast
 <i style="background:var(--buy)"></i>price when players buy fast <i style="border-top:2px dashed var(--gold)"></i>your buy offer
 <i class="dot"></i>dips</p>

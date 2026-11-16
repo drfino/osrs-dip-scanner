@@ -1,30 +1,26 @@
 # OSRS GE Dip Scanner
 
-A small program that finds Grand Exchange items you can buy cheap and sell for a profit. I made it
-for my own flipping.
+This lists Grand Exchange items worth a lowball bid right now, with the most profitable at the top.
+I made it for my own flipping.
 
 ![The scanner page](docs/desktop.png)
 
 ## How it works
 
-Most items only have a few buy offers near the normal price. When someone sells fast and uses those
-up, the rest of their sale falls through to the lowball offers below, and the price dips.
+Most items only have a few buy offers near their normal price. When someone sells more than those
+offers can take, the rest goes to the lowball offers below, and the price drops for a few minutes.
 
-The scanner checks the busiest items in your price range for dips in the last day, and suggests a
-bid just above the last lowball that filled. That puts your offer first in line for the next fast
-seller. For each item it shows:
-
-- **Dip**: how far the price fell last time, and when.
-- **Buy at**: your bid.
-- **Sell at**: roughly what it sells for normally.
-- **Profit**: what you make on one item after the 2% GE tax.
+The scanner checks the busiest items in your price range and lists the ones where this happened in
+the last day. Dip is how far the price fell last time and how long ago. Buy at is a little above the
+last lowball that filled, so your offer is ahead of the other lowballs next time. Sell at is roughly
+what the item normally sells for. Profit is per item after the 2% GE tax.
 
 ## How to use it
 
-1. Put in a buy offer for one of an item at its **Buy at** price.
+1. Put in a buy offer for one of an item at the Buy at price.
 2. Wait. It can take a few hours or a day.
-3. When it fills, sell it at the **Sell at** price.
-4. If it hasn't filled in a day or two, cancel it and try another item on the list.
+3. When it fills, sell it at the Sell at price.
+4. If it hasn't filled after a day or two, cancel it and try another item.
 
 ## Setup (Windows, once)
 
