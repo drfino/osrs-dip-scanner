@@ -554,7 +554,12 @@ def sparkline(r, w=720, h=56):
         return ""
     t0, t1 = pts[0]["timestamp"], pts[-1]["timestamp"]
     vals = [p[k] for p in pts for k in ("avgLowPrice", "avgHighPrice") if p.get(k)] + [r["base"]]
+    # The top of the chart ignores the odd trade far above normal (an overpriced buy offer someone
+    # sold into), so it doesn't squash the rest of the chart flat. Those just run off the top.
+    # The bottom keeps every low: the dips are the point.
     lo, hi = min(vals), max(vals)
+    if len(vals) >= 20:
+        hi = min(hi, statistics.quantiles(vals, n=50)[-1] * 1.02)
     pad = (hi - lo) * 0.08 or 1
     lo, hi = lo - pad, hi + pad
 
@@ -564,7 +569,7 @@ def sparkline(r, w=720, h=56):
         return h - inset - (v - lo) / (hi - lo) * (h - 2 * inset)
 
     def line(k, cls):
-        seg = " ".join(f"{(p['timestamp'] - t0) / max(t1 - t0, 1) * w:.1f},{y_of(p[k]):.1f}"
+        seg = " ".join(f"{(p['timestamp'] - t0) / max(t1 - t0, 1) * w:.1f},{y_of(min(p[k], hi)):.1f}"
                        for p in pts if p.get(k))
         return f'<polyline class="{cls}" points="{seg}"/>'
 
