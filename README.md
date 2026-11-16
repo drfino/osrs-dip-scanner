@@ -1,21 +1,34 @@
 # OSRS GE Dip Scanner
 
-Finds Grand Exchange items that just had a price dip, and tells you what price to buy them at and
-what price to sell them at. I built it for my own flipping.
+A small program that finds Grand Exchange items you can buy cheap and sell for a profit. I made it
+for my own flipping.
 
 ![The scanner page](docs/desktop.png)
 
-## How it works
+## Why this makes money
 
-Sometimes a player dumps an item far below its price, and the price bounces back within minutes.
-That's a **dip**. The scanner finds items that just dipped and gives you three numbers for each:
+Sometimes a player sells an item far under its price because they want the gold right away. The GE
+gives their item to the highest buy offer waiting, even if that offer is low. A few minutes later the
+price is back to normal.
 
-- **Buy at**: put in a buy offer at this price and leave it. When the item dips again, your offer
-  buys it cheap.
-- **Sell at**: once you have the item, sell it at this price.
-- **Profit**: what you make on one item, after the GE's 2% tax.
+If your buy offer is the one waiting, you get the item cheap and sell it at the normal price.
 
-If an offer hasn't filled in a day or two, move it to another item.
+## What the scanner does
+
+It checks the busiest items in your price range and finds the ones where this has happened in the
+last day. For each one it shows:
+
+- **Dip**: how far the price fell last time, and when.
+- **Buy at**: the price to put your buy offer in at. It's just above where the price fell to last time.
+- **Sell at**: roughly what you can sell it for once you have it.
+- **Profit**: what you make on one item after the 2% GE tax.
+
+## How to use it
+
+1. Put in a buy offer for one of an item at its **Buy at** price.
+2. Wait. It can take a few hours or a day.
+3. When it buys, sell it at the **Sell at** price.
+4. If it hasn't bought anything in a day or two, cancel it and try another item on the list.
 
 ## Setup (Windows, once)
 
@@ -42,7 +55,7 @@ To use it away from home, install [Tailscale](https://tailscale.com) (free) on y
 phone, sign in to both with the same account, and open `http://<your PC's name>:8765` on your phone.
 Your PC has to be on with the scanner running.
 
-## Good to know
+## Details
 
 - It looks at items priced between 5% and 40% of your cash stack that trade at least 25 times a
   day, and shows the 10 with the most profit.
