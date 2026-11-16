@@ -85,6 +85,21 @@ scanner, one per line, spelled as on the prices site. It starts empty.
 </details>
 
 <details>
+<summary><b>Backtest</b></summary>
+
+`GE Dip Backtest.bat` replays the scanner's rules over the last 30 days of real GE prices and
+shows how often its bids would have filled (within 6, 24 and 48 hours, by dip depth and item price),
+how a few other bid rules compare, and how close Est. sale was to what items actually sold for.
+
+The first run downloads the prices from the wiki at one request a second, which takes about 2.5
+hours. You can close it and run it again later; finished days are kept in `backtest_data`. Results
+are saved to `backtest_results.txt` and `backtest_dips.csv`. The prices are 5-minute averages of
+the trades RuneLite sees, so treat the odds as rough and the comparisons between rules as the useful
+part.
+
+</details>
+
+<details>
 <summary><b>Dip log</b></summary>
 
 Every scan writes each dip to `dip_log.csv` next to the scanner, so you can check later how well

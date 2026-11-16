@@ -39,7 +39,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ZIP = "https://github.com/drfino/osrs-dip-scanner/archive/refs/heads/master.zip"
 # Only these files are ever replaced by an update. Your config.json and watchlist.txt are yours.
-UPDATABLE = ("dip_scanner.py", "README.md", "watchlist.example.txt", "GE Dip Scanner.bat", "coins.png")
+UPDATABLE = ("dip_scanner.py", "README.md", "watchlist.example.txt", "GE Dip Scanner.bat", "coins.png",
+             "backtest.py", "GE Dip Backtest.bat")
 API = "https://prices.runescape.wiki/api/v1/osrs"
 ITEM_PAGE = "https://prices.runescape.wiki/osrs/item/{}"
 SCAN_WORKERS = 4      # items fetched at once on a first scan

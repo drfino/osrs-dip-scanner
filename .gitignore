@@ -3,3 +3,6 @@ watchlist.txt
 __pycache__/
 *.new
 dip_log.csv
+backtest_data/
+backtest_results.txt
+backtest_dips.csv
