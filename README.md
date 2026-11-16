@@ -45,7 +45,7 @@ anywhere. Your PC must be on with the scanner running.
 Type your cash stack into the page (e.g. `15m`). Every scan then watches items that fit it, so the list
 moves with the market and with your stack:
 
-- **Priced from 5% to about 29% of your stack.** At 15m: about 750k to 4.3m.
+- **Priced from 5% to 40% of your stack.** At 15m: 750k to 6m.
 - **The 75 busiest items** in that range, by trades a day. Busy items get dumped on often, so
   bids on them actually fill. Rarely traded items are left out even if they had a big dip.
 - **Not enough dips in that range?** It steps down to cheaper items (the range a 10x smaller
@@ -108,7 +108,7 @@ The page covers the cash stack. For anything else, create `config.json` next to 
 | `undercut_pct` | 0.5 | How far under the usual recent instabuy price the sale is priced. |
 | `max_auto_items` | 75 | How many of the busiest items to watch in each price range. |
 | `min_daily_volume` | 25 | Trades per day an item needs to be picked at all. |
-| `min_item_pct` / `max_offer_pct` | 5 / 29 | Cheapest and priciest items to watch, as % of your stack. |
+| `min_item_pct` / `max_offer_pct` | 5 / 40 | Cheapest and priciest items to watch, as % of your stack. |
 
 Edit `watchlist.txt` to always include specific items (names exactly as on the prices site).
 

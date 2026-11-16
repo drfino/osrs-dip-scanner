@@ -60,7 +60,7 @@ DEFAULT_CONFIG = {
     # Auto watchlist from your cash stack (0 = only use watchlist.txt).
     "cash_stack": 0,
     "min_item_pct": 5,         # cheapest item to watch, as % of your stack
-    "max_offer_pct": 29,       # most one offer may use, as % of your stack (also the priciest item)
+    "max_offer_pct": 40,       # most one offer may use, as % of your stack (also the priciest item)
     "min_daily_volume": 25,    # trades per day, so offers can actually fill
     "max_auto_items": 75,      # the busiest N items (by trades a day) per price step
     "max_steps": 3,            # if your band has too few dips, step down to cheaper items this many times
