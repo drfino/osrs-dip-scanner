@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """
-OSRS GE Dip Scanner: finds instasell dips worth bidding on.
+OSRS GE Dip Scanner: finds Grand Exchange items that recently sold far under their normal price,
+and suggests a buy offer just above that low.
 
-Double-click "GE Dip Scanner.bat" (or run: python dip_scanner.py). It opens a local page
-(http://localhost:8765, or this PC's address from a phone on the same Wi-Fi) with a Scan button and a cash stack box, and rescans every 10 minutes.
+Double-click "GE Dip Scanner.bat" (or run: python dip_scanner.py). It opens a local page at
+http://localhost:8765 (or this PC's address from a phone on the same Wi-Fi), and rescans every
+10 minutes while the page is open.
 
-A "dip" is a short, sharp drop that bounces back, measured against the price AROUND it
-(the median instasell of the surrounding 90 minutes), so slow drifts and noise don't count:
-  - the 5-minute average instasell is deep enough that a bid beat_by_pct above it still clears
-    min_profit_pct after tax,
-  - it lasts no longer than spike_max_minutes,
-  - and the price recovers to within half that depth within spike_recover_minutes.
+A dip is a short drop that bounces back, measured against the price around it (the median
+instasell of the surrounding 90 minutes) and the 7-day average, so slow drifts don't count:
+  - deep enough that an offer beat_by_pct above it still clears min_profit_pct after tax,
+  - lasting no longer than spike_max_minutes,
+  - recovering to within half that depth within spike_recover_minutes,
+  - and no older than spike_max_age_hours.
 
-Data: OSRS Wiki real-time prices API (prices.runescape.wiki), the same data as the site.
-No installs needed, Python 3.8+ standard library only.
+Data: OSRS Wiki real-time prices API (prices.runescape.wiki). Python 3.8+, standard library only.
 """
 import csv
 import io
@@ -212,8 +213,15 @@ def price_band(cfg):
     return cash * cfg["min_item_pct"] / 100, cash * cfg["max_offer_pct"] / 100
 
 
+_warned_missing = []   # warn about misspelled watchlist names once, not on every rescan
+
+
 def load_watchlist(cfg, cache=None):
-    """Your watchlist.txt items, plus (if a cash stack is set) every item that fits your budget."""
+    """
+    Groups of items to scan, in order, plus each item's trades per day. With a cash stack: the
+    busiest items in your price band, then cheaper bands. Your watchlist.txt items always go in
+    the first group.
+    """
     mapping = cached(cache, "mapping", Cache.SLOW_TTL, lambda: fetch("mapping", cfg))
     by_name = {m["name"].lower(): m for m in mapping}
     by_id = {m["id"]: m for m in mapping}
@@ -229,8 +237,9 @@ def load_watchlist(cfg, cache=None):
                 continue
             m = by_name.get(name.lower())
             (manual if m else missing).append(m or name)
-    if missing:
-        print("These watchlist names were not found (check spelling against the wiki):")
+    if missing and not _warned_missing:
+        _warned_missing.append(True)
+        print("These watchlist.txt names were not found (check spelling against the prices site):")
         for n in missing:
             print("   -", n)
 
@@ -261,10 +270,8 @@ def load_watchlist(cfg, cache=None):
     stepped = {m["id"] for g in groups for m in g}
     extra = [m for m in manual if m["id"] not in stepped]
     groups[0] += list({m["id"]: m for m in extra}.values())
-    prices = {m["id"]: low for step in steps for low, m in step}
     volumes = {m["id"]: vol for vol, _, m in liquid} if band else {}
-    cfg["_watch_info"] = {"band": band, "manual": len(extra), "prices": prices, "volumes": volumes}
-    return groups
+    return groups, volumes
 
 
 # ----------------------------------------------------------------------------- analysis
@@ -303,7 +310,7 @@ def find_spikes(pts, local, cfg, now, long_base=None):
     Group 5-minute buckets that are spike_min_pct+ under their reference price into events, then
     keep only the ones that are recent, short and bounce back. The reference is the LOWER of the
     local price (around the dip) and the long-run average, so a dip that only falls back to where
-    the price was days ago doesn't count. Returns (spikes, rejected_count, stale_count).
+    the price was days ago doesn't count.
     """
     thr = cfg["spike_min_pct"] / 100
     max_len = cfg["spike_max_minutes"] * 60
@@ -330,15 +337,13 @@ def find_spikes(pts, local, cfg, now, long_base=None):
                    "vol": vol, "side": side}
             events.append(cur)
 
-    spikes, rejected, stale = [], 0, 0
+    spikes = []
     max_age = cfg["spike_max_age_hours"] * 3600
     for e in events:
         if now - e["ts"] > max_age:
-            stale += 1               # too old to say much about the price right now
-            continue
+            continue                 # too old to say much about the price right now
         if e["end"] - e["start"] > max_len:
-            rejected += 1            # stayed low too long: a price drop, not a spike
-            continue
+            continue                 # stayed low too long: a price drop, not a spike
         recovered_line = e["local"] * (1 - thr / 2)
         after = [p["avgLowPrice"] for p in pts
                  if e["end"] < p["timestamp"] <= e["end"] + recover and p.get("avgLowPrice")]
@@ -347,10 +352,9 @@ def find_spikes(pts, local, cfg, now, long_base=None):
         elif now - e["end"] <= recover:
             e["ongoing"] = True      # too recent to know if it recovers yet: keep it, flag it
         else:
-            rejected += 1            # never bounced back: not a spike
-            continue
+            continue                 # never bounced back: not a spike
         spikes.append(e)
-    return spikes, rejected, stale
+    return spikes
 
 
 def usual_instabuy(pts, hourly, cfg, now, fallback):
@@ -373,7 +377,7 @@ def long_run_price(hourly, cfg, now):
     return statistics.median(lows) if len(lows) >= 24 else None
 
 
-def analyze(item, recent, latest, cfg, now, hourly=()):
+def analyze(item, recent, cfg, now, hourly=()):
     pts = [p for p in recent if p["timestamp"] >= now - 86400]
     lows = [p["avgLowPrice"] for p in pts if p.get("avgLowPrice")]
     if len(lows) < 12:
@@ -386,9 +390,9 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     # Only dips in the listing window count.
     beat = cfg["beat_by_pct"]
     dump_cfg = dict(cfg, spike_min_pct=cfg["min_profit_pct"] + GE_TAX * 100 + beat)
-    spikes, rejected, stale = find_spikes(pts, local, dump_cfg, now, long_base)
+    spikes = find_spikes(pts, local, dump_cfg, now, long_base)
 
-    # "Normal now": what it actually sells for these days, the median of the last 3 hours.
+    # Normal price now: the median instasell of the last 3 hours.
     recent_lows = [p["avgLowPrice"] for p in pts if p["timestamp"] >= now - 3 * 3600 and p.get("avgLowPrice")]
     normal = statistics.median(recent_lows) if len(recent_lows) >= 4 else statistics.median(lows)
 
@@ -406,33 +410,21 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     # puts you at the front of what's left of the lowball queue, ahead of the next dump. Older dips
     # say nothing about the queue now. beat_by_pct is the small cushion over other lowballers.
     pick = None
-    budget = offer_budget(cfg)
     if spikes:
         latest_dip = max(spikes, key=lambda e: e["ts"])
         bid = price_bid(latest_dip["low"] / (1 - beat / 100))
         profit = sell_after_tax(sell_at) - bid
         if profit / bid * 100 >= cfg["min_profit_pct"]:
-            pick = {"bid": bid, "profit": profit, "profit_pct": profit / bid * 100,
-                    "depth": (ref - bid) / ref * 100, "dip": latest_dip}
-    # Ranked by profit per flip. The dip count and age are on the page for you to judge.
+            pick = {"bid": bid, "profit": profit, "dip": latest_dip}
+
+    # Ranked by profit per flip. An offer bigger than max_offer_pct of your stack (only possible
+    # for watchlist.txt items) still shows, but below the rest.
     score = pick["profit"] if pick else 0
+    budget = offer_budget(cfg)
     if pick and budget and pick["bid"] > budget:
-        score *= 0.1                         # can't afford it in one offer: list it, but below the rest
-
-    lt = latest.get(str(item["id"]), {}) if latest else {}
-    now_low, now_low_ts = lt.get("low"), lt.get("lowTime")
-    now_pct = (normal - now_low) / normal * 100 if now_low else None
-
-    deepest = max(spikes, key=lambda e: e["pct"]) if spikes else None
-    # Worth showing: a profitable bid exists, and the item dumped recently (not just a stale day-old dip).
-    recent_dump = any(now - e["ts"] <= cfg["spike_max_age_hours"] * 3600 for e in spikes)
-    return {
-        "listable": bool(pick) and recent_dump,
-        "item": item, "base": normal, "long_base": long_base, "ref": ref, "sell_at": sell_at, "stale": stale,
-        "spikes": spikes, "rejected": rejected, "deepest": deepest,
-        "pick": pick, "score": score, "now_low": now_low, "now_low_ts": now_low_ts,
-        "now_pct": now_pct, "pts": pts, 
-    }
+        score *= 0.1
+    return {"item": item, "pick": pick, "score": score, "spikes": spikes, "pts": pts,
+            "base": normal, "long_base": long_base, "sell_at": sell_at}
 
 
 # ----------------------------------------------------------------------------- scan mode
@@ -516,8 +508,7 @@ def run_scan(cfg, progress=None, cache=None):
     Scan the whole watchlist. progress(done, total, name) is called per item.
     With a cache (serve mode), rescans fetch only what's new: a few bulk requests in total.
     """
-    groups = load_watchlist(cfg, cache)
-    latest = fetch("latest", cfg)["data"]
+    groups, volumes = load_watchlist(cfg, cache)
     now = time.time()
     catch_up(cache, cfg, now)
     if cache is not None and not cache.synced_to:
@@ -525,7 +516,7 @@ def run_scan(cfg, progress=None, cache=None):
     results, scanned = [], []
     total = len(groups[0]) if groups else 0
     for g, group in enumerate(groups):
-        if g and sum(r["listable"] for r in results) >= cfg["max_shown"]:
+        if g and sum(bool(r["pick"]) for r in results) >= cfg["max_shown"]:
             break                            # enough dips found: no need to step down
         if g:
             total += len(group)
@@ -533,7 +524,7 @@ def run_scan(cfg, progress=None, cache=None):
         lock = threading.Lock()
 
         def one(it):
-            r = scan_item(it, cfg, cache, now, latest)
+            r = scan_item(it, cfg, cache, now)
             with lock:
                 scanned.append(it)
                 if progress:
@@ -541,19 +532,18 @@ def run_scan(cfg, progress=None, cache=None):
             return r
         with ThreadPoolExecutor(max_workers=SCAN_WORKERS) as pool:
             results += [r for r in pool.map(one, group) if r]
-    cfg["_scanned"] = scanned
-    results.sort(key=lambda r: (r["score"], r["deepest"]["pct"] if r["deepest"] else 0), reverse=True)
-    log_dips(results, now, (cfg.get("_watch_info") or {}).get("volumes"))
+    results.sort(key=lambda r: r["score"], reverse=True)
+    log_dips(results, now, volumes)
     return results, now
 
 
-def scan_item(it, cfg, cache, now, latest):
+def scan_item(it, cfg, cache, now):
     recent = five_minute_series(it, cfg, cache, now)
 
     def load_hourly(item_id=it["id"]):
         return fetch("timeseries", cfg, {"timestep": "1h", "id": item_id}).get("data", [])
     hourly = cached(cache, ("1h", it["id"]), Cache.SLOW_TTL, load_hourly)
-    return analyze(it, recent, latest, cfg, now, hourly)
+    return analyze(it, recent, cfg, now, hourly)
 
 
 # ----------------------------------------------------------------------------- HTML report
@@ -601,7 +591,7 @@ def icon_html(it):
     return f'<img class="icon" src="{escape(src)}" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">'
 
 
-def row_html(r, cfg, now):
+def row_html(r, now):
     it, p = r["item"], r["pick"]
     dip = p["dip"]
     return f"""
@@ -616,9 +606,8 @@ def row_html(r, cfg, now):
 
 
 def build_report(results, cfg, now, toolbar=""):
-    with_spikes = [r for r in results if r["listable"]]
-    top = with_spikes[:cfg["max_shown"]]
-    rows = "".join(row_html(r, cfg, now) for r in top)
+    top = [r for r in results if r["pick"]][:cfg["max_shown"]]
+    rows = "".join(row_html(r, now) for r in top)
     if not rows:
         rows = '<tr><td colspan="6" class="empty">No good dips right now. Check back later.</td></tr>'
 
@@ -631,7 +620,7 @@ def build_report(results, cfg, now, toolbar=""):
 <style>
 :root {{
   --bg:#343434; --head:#54524a; --panel:#212121; --fg:#ececec; --muted:#a8a8a8; --line:#474747;
-  --buy:#2bdc51; --sell:#ec7d2f; --gold:#f0c572; --link:#ffc56d; --dip:#ff5c5c; --warn:#f0c572;
+  --buy:#2bdc51; --sell:#ec7d2f; --gold:#f0c572; --link:#ffc56d; --dip:#ff5c5c;
   --btn:#ffd7a8; --btn-edge:#b39776; --btn-fg:#2c2116;
   --serif:"PT Serif",Georgia,serif; --sans:"IBM Plex Sans",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,monospace; color-scheme:dark;
@@ -648,7 +637,6 @@ main {{ padding:0 max(16px, 3vw) }}
 .legend i {{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin:0 4px 0 10px }}
 .wrap {{ overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:4px }}
 table {{ border-collapse:collapse; width:100%; min-width:1100px }}
-
 th {{ text-align:left; font-size:13px; color:#fff; padding:9px 12px; border-bottom:1px solid var(--line);
   font-weight:700; white-space:nowrap; background:#2a2a2a }}
 td {{ padding:6px 12px; border-bottom:1px solid var(--line); vertical-align:middle }}
@@ -765,6 +753,25 @@ def phone_url():
     except OSError:
         return None
 
+COIN_JS = """
+// Scan progress as the coin pile animation (coins.png: 32 frames side by side, small pile to full).
+// It plays at a capped speed, so even a 2-second rescan shows the pile grow, and the page reloads
+// only once the pile is full.
+function coinStack(box, w, h){
+  const FRAMES=32;
+  box.style.cssText+=';width:'+w+'px;height:'+h+'px;background:url(/coins.png) 0 0/'+(w*FRAMES)+'px '+h+'px no-repeat';
+  let shown=0, target=0.05, done=null, last=performance.now();
+  (function tick(t){
+    shown=Math.min(target,shown+(t-last)/1600);last=t;
+    box.style.backgroundPositionX=-Math.round(shown*(FRAMES-1))*w+'px';
+    if(done&&shown>=1){setTimeout(done,400);return;}
+    requestAnimationFrame(tick);
+  })(last);
+  return {progress(f){target=Math.max(target,Math.min(0.9,f));},
+          finish(cb){target=1;done=cb;}};
+}
+"""
+
 TOOLBAR = """<div class="bar">
   <button id="scan">Scan now</button>
   <label>Cash stack <input id="cash" type="text" value="__CASH__" placeholder="e.g. 15m" size="7"></label>
@@ -774,22 +781,7 @@ TOOLBAR = """<div class="bar">
 <script>
 (function () {
   const LAST = __LAST__;
-  // Scan progress as the coin pile animation (coins.png: 32 frames side by side, small pile to full).
-  // It plays at a capped speed, so even a 2-second rescan shows the pile grow, and the page reloads
-  // only once the pile is full.
-  function coinStack(box, w, h){
-    const FRAMES=32;
-    box.style.cssText+=';width:'+w+'px;height:'+h+'px;background:url(/coins.png) 0 0/'+(w*FRAMES)+'px '+h+'px no-repeat';
-    let shown=0, target=0.05, done=null, last=performance.now();
-    (function tick(t){
-      shown=Math.min(target,shown+(t-last)/1600);last=t;
-      box.style.backgroundPositionX=-Math.round(shown*(FRAMES-1))*w+'px';
-      if(done&&shown>=1){setTimeout(done,400);return;}
-      requestAnimationFrame(tick);
-    })(last);
-    return {progress(f){target=Math.max(target,Math.min(0.9,f));},
-            finish(cb){target=1;done=cb;}};
-  }
+__COINJS__
   const btn = document.getElementById('scan'), st = document.getElementById('st'),
         progbox = document.getElementById('progbox');
   let coins = null;
@@ -834,19 +826,22 @@ TOOLBAR = """<div class="bar">
   document.addEventListener('visibilitychange', () => { if (!document.hidden && stale() && !btn.disabled) startScan(); });
   if (stale()) startScan(); else poll();
 })();
-</script>"""
+</script>""".replace("__COINJS__", COIN_JS)
 
-SETUP_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>GE Dip Scanner</title>
+# The first-run pages (cash stack question, first scan) share one look.
+SMALL_HEAD = """<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>GE Dip Scanner</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=PT+Serif:wght@700&display=swap" rel="stylesheet">
 <link rel="icon" href="https://oldschool.runescape.wiki/images/Coins_10000.png">
-<style>body{margin:0;display:grid;place-items:center;height:100vh;background:#343434;color:#ececec;
+<style>body{margin:0;display:grid;place-items:center;min-height:100vh;background:#343434;color:#ececec;
 font:15px "IBM Plex Sans",system-ui,sans-serif}h2{font:700 24px "PT Serif",Georgia,serif;color:#fff}
-.box{text-align:center;max-width:420px}.err{color:#ff5c5c;min-height:1.4em}p{color:#a8a8a8}
+.box{text-align:center;max-width:420px;padding:0 16px}.err{color:#ff5c5c;min-height:1.4em}p{color:#a8a8a8}
 a{color:#a8a8a8;font-size:13px}input{font:16px "IBM Plex Sans",system-ui;padding:7px 10px;width:160px;border-radius:2px;
 border:1px solid #6e6e6e;background:#212121;color:inherit}button{font:700 15px "IBM Plex Sans",system-ui;padding:7px 16px;
 border:0;border-bottom:3px solid #b39776;border-radius:2px;background:#ffd7a8;color:#2c2116;cursor:pointer;margin-left:6px}
-.coinbox{margin:0 auto 4px}
-.coinbox{background-repeat:no-repeat}</style></head><body>
+.coinbox{margin:0 auto 4px}</style></head><body>"""
+
+SETUP_PAGE = SMALL_HEAD + """
 <div class="box"><h2>GE Dip Scanner</h2>
 <p>What's your cash stack? It picks items that fit it (5% to 40% of your stack per item).
 You can change it any time on the main page.</p>
@@ -868,35 +863,10 @@ def _needs_setup(cfg):
     return not cfg.get("cash_stack") and not cfg.get("setup_done")
 
 
-WAITING_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>GE Dip Scanner</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=PT+Serif:wght@700&display=swap" rel="stylesheet">
-<link rel="icon" href="https://oldschool.runescape.wiki/images/Coins_10000.png">
-<style>body{margin:0;display:grid;place-items:center;height:100vh;background:#343434;color:#ececec;
-font:15px "IBM Plex Sans",system-ui,sans-serif}h2{font:700 24px "PT Serif",Georgia,serif;color:#fff}
-.box{text-align:center;max-width:420px}.err{color:#ff5c5c;min-height:1.4em}p{color:#a8a8a8}
-a{color:#a8a8a8;font-size:13px}input{font:16px "IBM Plex Sans",system-ui;padding:7px 10px;width:160px;border-radius:2px;
-border:1px solid #6e6e6e;background:#212121;color:inherit}button{font:700 15px "IBM Plex Sans",system-ui;padding:7px 16px;
-border:0;border-bottom:3px solid #b39776;border-radius:2px;background:#ffd7a8;color:#2c2116;cursor:pointer;margin-left:6px}
-.coinbox{margin:0 auto 4px}
-.coinbox{background-repeat:no-repeat}</style></head><body>
+WAITING_PAGE = SMALL_HEAD + """
 <div class="box"><h2>GE Dip Scanner</h2><div class="coinbox" id="p"></div><p id="st">Running the first scan…</p></div>
 <script>
-// Scan progress as the coin pile animation (coins.png: 32 frames side by side, small pile to full).
-// It plays at a capped speed, so even a 2-second rescan shows the pile grow, and the page reloads
-// only once the pile is full.
-function coinStack(box, w, h){
-  const FRAMES=32;
-  box.style.cssText+=';width:'+w+'px;height:'+h+'px;background:url(/coins.png) 0 0/'+(w*FRAMES)+'px '+h+'px no-repeat';
-  let shown=0, target=0.05, done=null, last=performance.now();
-  (function tick(t){
-    shown=Math.min(target,shown+(t-last)/1600);last=t;
-    box.style.backgroundPositionX=-Math.round(shown*(FRAMES-1))*w+'px';
-    if(done&&shown>=1){setTimeout(done,400);return;}
-    requestAnimationFrame(tick);
-  })(last);
-  return {progress(f){target=Math.max(target,Math.min(0.9,f));},
-          finish(cb){target=1;done=cb;}};
-}
+__COINJS__
 const coins=coinStack(document.getElementById('p'),96,94);
 async function poll(){let s;try{s=await (await fetch('/status')).json()}catch(e){return}
 if(s.last){coins.finish(()=>location.reload());return}
@@ -904,7 +874,7 @@ if(s.error&&!s.running){document.getElementById('st').textContent='Scan failed: 
 coins.progress((s.done||0)/(s.total||1));
 document.getElementById('st').textContent='Scanning '+(s.done||0)+'/'+(s.total||'?')+'…';setTimeout(poll,400)}
 poll();
-</script></body></html>"""
+</script></body></html>""".replace("__COINJS__", COIN_JS)
 
 
 class _State:
@@ -989,9 +959,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(200, WAITING_PAGE)
                 return
             cfg = load_config()
+            phone = phone_url() if self.client_address[0] == "127.0.0.1" else None
             status = f"Updated {datetime.fromtimestamp(_State.last):%H:%M}" if _State.last else ""
-            if self.client_address[0] == "127.0.0.1" and phone_url():
-                status += f" · on your phone: {phone_url()}"
+            if phone:
+                status += f" · on your phone: {phone}"
             bar = (TOOLBAR.replace("__CASH__", gp(cfg["cash_stack"]) if cfg.get("cash_stack") else "")
                    .replace("__AUTO__", str(AUTO_SCAN_MINUTES))
                    .replace("__STATUS__", escape(status))
@@ -1007,11 +978,7 @@ class _Handler(BaseHTTPRequestHandler):
         elif self.path == "/settings":
             n = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(n) or b"{}")
-            age = body.get("spike_max_age_hours")
-            if isinstance(age, (int, float)) and 1 <= age <= 24:
-                _save_setting("spike_max_age_hours", int(age))
-                _start_scan()
-            elif isinstance(body.get("cash_stack"), (int, float)) and 0 <= body["cash_stack"] <= 1e11:
+            if isinstance(body.get("cash_stack"), (int, float)) and 0 <= body["cash_stack"] <= 1e11:
                 _save_setting("cash_stack", int(body["cash_stack"]))
                 _save_setting("setup_done", True)
                 _start_scan()
@@ -1086,12 +1053,9 @@ def serve(open_browser=True, update=True):
     server.serve_forever()
 
 
-# ----------------------------------------------------------------------------- watch mode
-
 # ----------------------------------------------------------------------------- entry
 
 def main():
-    cfg = load_config()
     mode = (sys.argv[1] if len(sys.argv) > 1 else "serve").lower()
     try:
         if mode == "serve":
