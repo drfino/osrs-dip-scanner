@@ -1,26 +1,17 @@
 # OSRS GE Dip Scanner
 
-This lists Grand Exchange items worth a lowball bid right now, with the most profitable at the top.
-I made it for my own flipping.
+Finds GE items that sometimes get sold way under price, and tells you what to bid. I made it for my
+own flipping.
 
 ![The scanner page](docs/desktop.png)
 
-## How it works
-
-Most items only have a few buy offers near their normal price. When someone sells more than those
-offers can take, the rest goes to the lowball offers below, and the price drops for a few minutes.
-
-The scanner checks the busiest items in your price range and lists the ones where this happened in
-the last day. Dip is how far the price fell last time and how long ago. Buy at is a little above the
-last lowball that filled, so your offer is ahead of the other lowballs next time. Sell at is roughly
-what the item normally sells for. Profit is per item after the 2% GE tax.
-
 ## How to use it
 
-1. Put in a buy offer for one of an item at the Buy at price.
-2. Wait. It can take a few hours or a day.
-3. When it fills, sell it at the Sell at price.
-4. If it hasn't filled after a day or two, cancel it and try another item.
+1. Bid at the Buy at price.
+2. When it fills, sell at the Sell at price.
+3. If it doesn't fill in a day or two, try another item.
+
+Profit is after the 2% GE tax.
 
 ## Setup (Windows, once)
 

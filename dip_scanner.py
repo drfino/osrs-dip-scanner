@@ -704,14 +704,8 @@ th.num {{ text-align:right }}
 <main>
 {toolbar}
 <div class="legend">
-<p>This page lists items worth a lowball bid right now, with the most profitable at the top.</p>
-<p>Most items only have a few buy offers near their normal price. When someone sells more than those
-offers can take, the rest goes to the lowball offers below, and the price drops for a few minutes.
-The scanner looks for items where this happened recently.</p>
-<p>To use it, put in a buy offer for one of an item at the Buy at price. That's a little above the
-last lowball that filled, so your offer is ahead of the other lowballs next time. When it fills,
-sell it at the Sell at price. Profit is per item after the 2% GE tax. If an offer hasn't filled
-after a day or two, cancel it and try another item.</p>
+<p>These items sometimes get sold way under price. Bid at the Buy at price and wait. When it fills,
+sell at the Sell at price. Profit is after the 2% tax. If it doesn't fill in a day or two, try another item.</p>
 <p>Chart of the last 24 hours: <i style="background:var(--sell)"></i>price when players sell fast
 <i style="background:var(--buy)"></i>price when players buy fast <i style="border-top:2px dashed var(--gold)"></i>your buy offer
 <i class="dot"></i>dips</p>
