@@ -1,6 +1,6 @@
 # OSRS GE Dip Scanner
 
-Checks GE prices for items that sometimes sell way under their normal price, and suggests a bid
+Checks GE prices for items that recently sold way under their normal price, and suggests a bid
 just above those low sales. I made it for my own flipping.
 
 ![The scanner page](docs/desktop.png)
