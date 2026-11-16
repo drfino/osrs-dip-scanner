@@ -704,7 +704,8 @@ th.num {{ text-align:right }}
 <main>
 {toolbar}
 <div class="legend">
-<p>These items sometimes get sold way under price. Put bids on a few of them at once at the Buy at
+<p>This checks GE prices for items that sometimes sell way under their normal price, and suggests a
+bid just above those low sales. Put bids on a few of them at once at the Buy at
 price and check back now and then. When one fills, sell it at whatever it's going for then. Sell at
 and Profit are estimates from current prices, after the 2% tax. Rescan once in a while and move your
 bids to what's on the list.</p>
