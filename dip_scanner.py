@@ -717,24 +717,22 @@ bids to what's on the list.</p>
 <tbody>{rows}</tbody></table></div>
 </main>
 <script>
-// Mark items that weren't on the list the last time you looked at this page.
+// Mark items that weren't on the list the last time you looked at this page (in this browser).
 (function () {{
-  const KEY = 'dipScannerSeen', DAY = 864e5;
-  let seen = {{}};
-  try {{ seen = JSON.parse(localStorage.getItem(KEY)) || {{}}; }} catch (e) {{}}
+  const KEY = 'dipScannerLastList';
+  let last = null;
+  try {{ last = JSON.parse(localStorage.getItem(KEY)); }} catch (e) {{}}
   const rows = document.querySelectorAll('tbody tr[data-id]');
   function mark() {{
-    const now = Date.now();
+    const ids = [];
     rows.forEach(function (r) {{
-      const id = r.dataset.id;
-      if (!(seen[id] && now - seen[id] < DAY)) {{
+      ids.push(r.dataset.id);
+      if (Array.isArray(last) && last.indexOf(r.dataset.id) === -1) {{
         const a = r.querySelector('.name a');
         if (a) a.insertAdjacentHTML('beforebegin', '<span class="chip new">New</span>');
       }}
-      seen[id] = now;
     }});
-    for (const id in seen) if (now - seen[id] > 3 * DAY) delete seen[id];
-    try {{ localStorage.setItem(KEY, JSON.stringify(seen)); }} catch (e) {{}}
+    try {{ localStorage.setItem(KEY, JSON.stringify(ids)); }} catch (e) {{}}
   }}
   // Only count an item as seen once the page is actually on screen.
   if (document.visibilityState === 'visible') mark();
