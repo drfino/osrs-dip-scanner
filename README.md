@@ -7,11 +7,11 @@ just above those low sales. I made it for my own flipping.
 
 ## How to use it
 
-1. Put bids on a few items at once, at their Buy at prices.
+1. Put in buy offers on a few items at once, at their Buy offer prices.
 2. Check back now and then. When one fills, sell it at whatever it's going for then.
 3. Rescan once in a while and move your bids to what's on the list.
 
-Sell at and Profit are estimates from current prices. Profit is after the 2% GE tax.
+Est. sale and est. profit come from current prices, after the 2% GE tax.
 
 ## Setup (Windows, once)
 
@@ -52,11 +52,11 @@ Your PC has to be on with the scanner running.
 
 - **Dip**: a price at least 5% below both the price around it and the item's 7-day average, that
   lasted 30 minutes or less and bounced back within an hour. Only dips from the last 18 hours count.
-  The Dip column shows how far below normal the latest dip went, and how long ago it was.
-- **Buy at**: 1% above the low of the latest dip. That dip used up the buy offer someone had at
+  The Dipped to column shows the low of the latest dip, how far below normal that was, and how long ago.
+- **Buy offer**: 1% above the low of the latest dip. That dip used up the buy offer someone had at
   that price, so an offer just above it is first in line for the next dump. Prices end in 111
   (1,004,111) to sit just above other players' round-number offers.
-- **Sell at**: 0.5% under what buyers have been paying over the last hour, and never more than they
+- **Est. sale**: 0.5% under what buyers have been paying over the last hour, and never more than they
   usually paid over the last 7 days.
 - An item only shows up if its profit is at least 2%.
 - If there aren't 10 good items in your price range, it also looks at the next cheaper range
@@ -73,9 +73,9 @@ the scanner, for example `{"max_shown": 10}`. Updates never change it.
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `max_shown` | 10 | How many items to show. |
-| `beat_by_pct` | 1 | How far above the dip's low the Buy at price is, in %. |
+| `beat_by_pct` | 1 | How far above the dip's low the Buy offer price is, in %. |
 | `min_profit_pct` | 2 | The least profit to show, in % after tax. |
-| `undercut_pct` | 0.5 | How far under recent buyers the Sell at price is, in %. |
+| `undercut_pct` | 0.5 | How far under recent buyers the Est. sale price is, in %. |
 | `max_auto_items` | 75 | How many of the busiest items to check in your price range. |
 | `min_daily_volume` | 25 | Trades a day an item needs to be checked at all. |
 | `min_item_pct` / `max_offer_pct` | 5 / 40 | Cheapest and priciest items to check, as % of your stack. |
@@ -88,7 +88,7 @@ To always check certain items, add their names to `watchlist.txt` (spelled as on
 <summary><b>Dip log</b></summary>
 
 Every scan writes each dip to `dip_log.csv` next to the scanner, so you can check later how well
-the Buy at prices would have filled. Each line is written 6 hours after the dip, with the lowest
+the Buy offer prices would have filled. Each line is written 6 hours after the dip, with the lowest
 price in those 6 hours (`next_low`). Nothing on the page uses it yet. Open it in any spreadsheet app.
 
 </details>

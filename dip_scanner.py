@@ -583,8 +583,13 @@ def sparkline(r, w=720, h=56):
         x = (e["ts"] - t0) / max(t1 - t0, 1) * w
         dots += (f'<circle cx="{x:.1f}" cy="{y_of(e["low"]):.1f}" r="3"><title>-{e["pct"]:.1f}% at '
                  f'{gp(e["low"])}</title></circle>')
+    bid_line = ""
+    if r["pick"]:
+        by = y_of(r["pick"]["bid"])
+        if 0 <= by <= h:
+            bid_line = f'<line class="bid" x1="0" x2="{w}" y1="{by:.1f}" y2="{by:.1f}"/>'
     return (f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}" class="spark">'
-            f'{line("avgHighPrice", "hi")}{line("avgLowPrice", "lo")}{dots}</svg>')
+            f'{bid_line}{line("avgHighPrice", "hi")}{line("avgLowPrice", "lo")}{dots}</svg>')
 
 
 def icon_html(it):
@@ -603,10 +608,10 @@ def row_html(r, cfg, now):
 <tr data-id="{it['id']}">
   <td class="name"><div class="namewrap">{icon_html(it)}<div><a href="{ITEM_PAGE.format(it['id'])}" target="_blank" rel="noopener">{escape(it['name'])}</a></div></div></td>
   <td class="chart">{sparkline(r)}</td>
-  <td class="num dip" data-label="Dip">-{dip['pct']:.0f}%<div class="sub">{ago(dip['ts'], now)}</div></td>
-  <td class="num buy" data-label="Buy at">{p['bid']:,}</td>
-  <td class="num sell" data-label="Sell at">{round(r['sell_at']):,}</td>
-  <td class="num profit" data-label="Profit">{gp(p['profit'])}</td>
+  <td class="num dip" data-label="Dipped to">{round(dip['low']):,}<div class="sub">-{dip['pct']:.0f}%, {ago(dip['ts'], now)}</div></td>
+  <td class="num buy" data-label="Buy offer">{p['bid']:,}</td>
+  <td class="num sell" data-label="Est. sale">{round(r['sell_at']):,}</td>
+  <td class="num profit" data-label="Est. profit">{gp(p['profit'])}</td>
 </tr>"""
 
 
@@ -666,6 +671,7 @@ th.num {{ text-align:right }}
 .spark polyline {{ fill:none; stroke-width:1.3; stroke-linejoin:round }}
 .spark .hi {{ stroke:var(--buy); opacity:.6 }}
 .spark .lo {{ stroke:var(--sell) }}
+.spark .bid {{ stroke:var(--gold); stroke-dasharray:5 3 }}
 .spark circle {{ fill:var(--dip) }}
 .bar {{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; margin:14px 0 4px;
   padding:9px 12px; background:var(--panel); border:1px solid var(--line); border-radius:4px }}
@@ -700,16 +706,16 @@ th.num {{ text-align:right }}
 {toolbar}
 <div class="legend">
 <p>This checks GE prices for items that recently sold way under their normal price, and suggests a
-bid just above those low sales. Put bids on a few of them at once at the Buy at
-price and check back now and then. When one fills, sell it at whatever it's going for then. Sell at
-and Profit are estimates from current prices, after the 2% tax. Rescan once in a while and move your
+bid just above those low sales. Put in buy offers on a few of them at once at the Buy offer price,
+and check back now and then. When one fills, sell it at whatever it's going for then. Est. sale and
+est. profit come from current prices, after the 2% tax. Rescan once in a while and move your
 bids to what's on the list.</p>
 <p>Chart of the last 24 hours: <i style="background:var(--sell)"></i>price when players sell fast
-<i style="background:var(--buy)"></i>price when players buy fast <i class="dot"></i>dips</p>
+<i style="background:var(--buy)"></i>price when players buy fast <i style="border-top:2px dashed var(--gold)"></i>your buy offer <i class="dot"></i>dips</p>
 </div>
 <div class="wrap"><table>
-<thead><tr><th>Item</th><th>Last 24 hours</th><th class="num">Dip</th><th class="num">Buy at</th>
-<th class="num">Sell at</th><th class="num">Profit</th></tr></thead>
+<thead><tr><th>Item</th><th>Last 24 hours</th><th class="num">Dipped to</th><th class="num">Buy offer</th>
+<th class="num">Est. sale</th><th class="num">Est. profit</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
 </main>
 <script>
