@@ -704,12 +704,14 @@ th.num {{ text-align:right }}
 <main>
 {toolbar}
 <div class="legend">
-<p>Most items only have a few buy offers near the normal price. When someone sells fast and uses
-those up, the rest of their sale falls through to the lowball offers below, and the price dips.
-This lists items where that happened recently. <b>Buy at</b> is a bid just above the last lowball
-that filled, so you're first in line for the next fast seller. <b>Sell at</b> is roughly what it
-sells for normally, and <b>Profit</b> is per item after the 2% GE tax. If a bid hasn't filled in a
-day or two, try another item.</p>
+<p><b>What this is:</b> items worth a lowball bid right now, most profit first.</p>
+<p><b>How it works:</b> most items only have a few buy offers near the normal price. When someone
+sells fast and uses those up, the rest of their sale falls through to the lowball offers below, and
+the price dips. This finds items where that happened recently.</p>
+<p><b>How to use it:</b> put in a buy offer for one at the <b>Buy at</b> price. It's just above the
+last lowball that filled, so you're first in line for the next fast seller. When it fills, sell it
+at the <b>Sell at</b> price. <b>Profit</b> is per item after the 2% GE tax. If a bid hasn't filled
+in a day or two, try another item.</p>
 <p>Chart of the last 24 hours: <i style="background:var(--sell)"></i>price when players sell fast
 <i style="background:var(--buy)"></i>price when players buy fast <i style="border-top:2px dashed var(--gold)"></i>your buy offer
 <i class="dot"></i>dips</p>
