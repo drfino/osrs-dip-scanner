@@ -567,7 +567,7 @@ def scan_item(it, cfg, cache, now, latest):
 
 # ----------------------------------------------------------------------------- HTML report
 
-def sparkline(r, w=540, h=58):
+def sparkline(r, w=540, h=46):
     pts = r["pts"]
     if not pts:
         return ""
@@ -665,18 +665,18 @@ def build_report(results, cfg, now, toolbar=""):
   --buy:#3ccf74; --sell:#ee8243; --gold:#e3b341; --dip:#ff5a5f; --warn:#e3b341; color-scheme:dark; }} }}
 * {{ box-sizing:border-box }}
 body {{ margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 var(--sans);
-  padding:28px max(16px, 3vw) 60px }}
+  padding:20px max(16px, 3vw) 40px }}
 header {{ display:flex; flex-wrap:wrap; gap:8px 24px; align-items:baseline; margin-bottom:6px }}
 h1 {{ font-weight:800; font-size:26px; margin:0; letter-spacing:-.01em }}
 .meta {{ color:var(--muted); font-size:13px }}
-.legend {{ color:var(--muted); font-size:12.5px; margin:10px 0 18px; max-width:92ch }}
+.legend {{ color:var(--muted); font-size:12.5px; margin:8px 0 12px; max-width:92ch }}
 .legend p {{ margin:6px 0 }}
 .legend i {{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin:0 4px 0 10px }}
 .wrap {{ overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:6px }}
 table {{ border-collapse:collapse; width:100%; min-width:1200px }}
 th {{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted);
   padding:10px 12px; border-bottom:1px solid var(--line); font-weight:600; white-space:nowrap }}
-td {{ padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:middle }}
+td {{ padding:6px 12px; border-bottom:1px solid var(--line); vertical-align:middle }}
 tr:last-child td {{ border-bottom:0 }}
 td.empty {{ color:var(--muted); padding:24px 12px }}
 .num {{ font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap }}
@@ -716,7 +716,7 @@ th.num {{ text-align:right }}
 <div class="legend">
 <p>These items recently <b>dipped</b> far below their normal price, best money-makers first.
 Leave a buy offer for one at the <b>Suggested bid</b>; it fills when the next dip hits.
-Once it fills, list it to sell at the price under <b>Profit per flip</b>, between the instasell and instabuy prices. Check back daily, and move any offer that hasn't filled in a day or two.</p>
+Once it fills, list it to sell at the price under <b>Profit per flip</b>, just under what buyers have been paying. Check back daily, and move any offer that hasn't filled in a day or two.</p>
 <p>Chart: <i style="background:var(--sell)"></i>instasell <i style="background:var(--buy)"></i>instabuy
 <i style="border-top:1px dashed var(--muted)"></i>normal price <i style="border-top:2px dashed var(--gold)"></i>your bid, red dots are dips.</p>
 </div>
