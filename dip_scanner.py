@@ -558,7 +558,7 @@ def scan_item(it, cfg, cache, now, latest):
 
 # ----------------------------------------------------------------------------- HTML report
 
-def sparkline(r, w=540, h=46):
+def sparkline(r, w=720, h=56):
     pts = r["pts"]
     if not pts:
         return ""
@@ -568,8 +568,10 @@ def sparkline(r, w=540, h=46):
     pad = (hi - lo) * 0.08 or 1
     lo, hi = lo - pad, hi + pad
 
+    inset = 5   # keeps the dip dots inside the chart instead of touching the next row
+
     def y_of(v):
-        return h - (v - lo) / (hi - lo) * h
+        return h - inset - (v - lo) / (hi - lo) * (h - 2 * inset)
 
     def line(k, cls):
         seg = " ".join(f"{(p['timestamp'] - t0) / max(t1 - t0, 1) * w:.1f},{y_of(p[k]):.1f}"
@@ -579,15 +581,10 @@ def sparkline(r, w=540, h=46):
     dots = ""
     for e in r["spikes"]:
         x = (e["ts"] - t0) / max(t1 - t0, 1) * w
-        dots += (f'<circle cx="{x:.1f}" cy="{y_of(e["low"]):.1f}" r="4"><title>-{e["pct"]:.1f}% at '
+        dots += (f'<circle cx="{x:.1f}" cy="{y_of(e["low"]):.1f}" r="3"><title>-{e["pct"]:.1f}% at '
                  f'{gp(e["low"])}</title></circle>')
-    bid_line = ""
-    if r["pick"]:
-        by = y_of(r["pick"]["bid"])
-        if 0 <= by <= h:
-            bid_line = f'<line class="bid" x1="0" x2="{w}" y1="{by:.1f}" y2="{by:.1f}"/>'
-    return (f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}" preserveAspectRatio="none" class="spark">'
-            f'{bid_line}{line("avgHighPrice", "hi")}{line("avgLowPrice", "lo")}{dots}</svg>')
+    return (f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}" class="spark">'
+            f'{line("avgHighPrice", "hi")}{line("avgLowPrice", "lo")}{dots}</svg>')
 
 
 def icon_html(it):
@@ -645,9 +642,8 @@ main {{ padding:0 max(16px, 3vw) }}
 .legend p {{ margin:6px 0 }}
 .legend i {{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin:0 4px 0 10px }}
 .wrap {{ overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:4px }}
-table {{ border-collapse:collapse; width:100%; min-width:760px }}
-td.chart {{ width:45% }}
-td.chart .spark {{ width:100%; min-width:260px }}
+table {{ border-collapse:collapse; width:100%; min-width:1100px }}
+
 th {{ text-align:left; font-size:13px; color:#fff; padding:9px 12px; border-bottom:1px solid var(--line);
   font-weight:700; white-space:nowrap; background:#2a2a2a }}
 td {{ padding:6px 12px; border-bottom:1px solid var(--line); vertical-align:middle }}
@@ -670,7 +666,6 @@ th.num {{ text-align:right }}
 .spark polyline {{ fill:none; stroke-width:1.3; stroke-linejoin:round }}
 .spark .hi {{ stroke:var(--buy); opacity:.6 }}
 .spark .lo {{ stroke:var(--sell) }}
-.spark .bid {{ stroke:var(--gold); stroke-dasharray:5 3 }}
 .spark circle {{ fill:var(--dip) }}
 .bar {{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; margin:14px 0 4px;
   padding:9px 12px; background:var(--panel); border:1px solid var(--line); border-radius:4px }}
@@ -694,7 +689,7 @@ th.num {{ text-align:right }}
   td {{ padding:0; border:0 }}
   td.name {{ grid-column:1 / -1; min-width:0 }}
   td.chart {{ grid-column:1 / -1; order:1 }}
-  td.chart {{ width:auto }}
+  td.chart .spark {{ width:100%; height:auto }}
   td.num {{ text-align:left; font-size:16px }}
   td.num::before {{ content:attr(data-label); display:block; font:600 11px var(--sans); color:var(--muted);
     text-transform:uppercase; letter-spacing:.04em }}
@@ -710,8 +705,7 @@ price and check back now and then. When one fills, sell it at whatever it's goin
 and Profit are estimates from current prices, after the 2% tax. Rescan once in a while and move your
 bids to what's on the list.</p>
 <p>Chart of the last 24 hours: <i style="background:var(--sell)"></i>price when players sell fast
-<i style="background:var(--buy)"></i>price when players buy fast <i style="border-top:2px dashed var(--gold)"></i>your buy offer
-<i class="dot"></i>dips</p>
+<i style="background:var(--buy)"></i>price when players buy fast <i class="dot"></i>dips</p>
 </div>
 <div class="wrap"><table>
 <thead><tr><th>Item</th><th>Last 24 hours</th><th class="num">Dip</th><th class="num">Buy at</th>
