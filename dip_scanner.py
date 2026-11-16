@@ -39,7 +39,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ZIP = "https://github.com/drfino/osrs-dip-scanner/archive/refs/heads/master.zip"
 # Only these files are ever replaced by an update. Your config.json and watchlist.txt are yours.
-UPDATABLE = ("dip_scanner.py", "README.md", "watchlist.example.txt", "GE Dip Scanner.bat")
+UPDATABLE = ("dip_scanner.py", "README.md", "watchlist.example.txt", "GE Dip Scanner.bat", "coins.png")
 API = "https://prices.runescape.wiki/api/v1/osrs"
 ITEM_PAGE = "https://prices.runescape.wiki/osrs/item/{}"
 SCAN_WORKERS = 4      # items fetched at once on a first scan
@@ -712,7 +712,7 @@ th.num {{ text-align:right }}
 .bar label {{ display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px }}
 .bar .status {{ font:12.5px var(--mono); color:var(--muted) }}
 .bar .status.err {{ color:var(--dip) }}
-.bar .coinbox {{ display:inline-flex; width:40px; height:36px; align-items:flex-end; justify-content:center }}
+.bar .coinbox {{ display:inline-block }}
 .bar .coinbox[hidden] {{ display:none }}
 </style></head><body>
 <header><h1><img src="https://oldschool.runescape.wiki/images/Coins_10000.png" alt="">GE Dip Scanner</h1>
@@ -788,37 +788,16 @@ TOOLBAR = """<div class="bar">
 <script>
 (function () {
   const LAST = __LAST__;
-  // Scan progress as a pile of gold coin stacks rising from a single coin. Drawn here, not images.
-  // The pile rises smoothly at a capped speed, so even a 2-second rescan shows it grow, and a scan
-  // only reloads the page once the pile is full.
-  function coinStack(box){
-    const NS='http://www.w3.org/2000/svg', el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e};
-    box.textContent='';
-    const svg=el('svg',{viewBox:'0 0 40 36',width:40,height:36},box);
-    const g=el('linearGradient',{id:'cg'},el('defs',{}));
-    [['0','#8a5200'],['.3','#ffd21f'],['.6','#f5b800'],['1','#8a5200']].forEach(([o,c])=>el('stop',{offset:o,'stop-color':c},g));
-    // [centre x, base y, width, full height], in the order they rise
-    const cols=[[8,32,7,13],[15,34,6,7],[15,29,7,24],[23,31,7,20],[31,28,7,27]];
-    const draw=[2,4,3,0,1];  // back stacks first so front ones sit in front of them
-    const lone=el('ellipse',{cx:24,cy:34,rx:3.5,ry:1.3,fill:'#f5b800',stroke:'#8a5200','stroke-width':.6});
-    const parts=[];
-    draw.forEach(i=>{const [x,b,w]=cols[i];parts[i]={
-      body:el('rect',{x:x-w/2,width:w,fill:'url(#cg)'}),
-      rings:el('path',{stroke:'#a86a00','stroke-width':.4,fill:'none'}),
-      top:el('ellipse',{cx:x,rx:w/2,ry:1.3,fill:'#ffe066',stroke:'#a86a00','stroke-width':.5})}});
-    function render(p){
-      lone.style.display=p<0.9?'':'none';
-      cols.forEach(([x,b,w,h],i)=>{
-        const f=Math.max(0,Math.min(1,(p-i*0.12)/0.5)), hh=Math.floor(h*f/2)*2, P=parts[i];
-        const vis=hh>0?'':'none';P.body.style.display=P.rings.style.display=P.top.style.display=vis;
-        P.body.setAttribute('y',b-hh);P.body.setAttribute('height',hh);P.top.setAttribute('cy',b-hh);
-        let d='';for(let y=b-2;y>b-hh;y-=2)d+='M'+(x-w/2)+' '+y+'h'+w;P.rings.setAttribute('d',d);
-      });
-    }
+  // Scan progress as the coin pile animation (coins.png: 32 frames side by side, small pile to full).
+  // It plays at a capped speed, so even a 2-second rescan shows the pile grow, and the page reloads
+  // only once the pile is full.
+  function coinStack(box, w, h){
+    const FRAMES=32;
+    box.style.cssText+=';width:'+w+'px;height:'+h+'px;background:url(/coins.png) 0 0/'+(w*FRAMES)+'px '+h+'px no-repeat';
     let shown=0, target=0.05, done=null, last=performance.now();
-    render(0);
     (function tick(t){
-      shown=Math.min(target,shown+(t-last)/1500);last=t;render(shown);
+      shown=Math.min(target,shown+(t-last)/1600);last=t;
+      box.style.backgroundPositionX=-Math.round(shown*(FRAMES-1))*w+'px';
       if(done&&shown>=1){setTimeout(done,400);return;}
       requestAnimationFrame(tick);
     })(last);
@@ -828,7 +807,7 @@ TOOLBAR = """<div class="bar">
   const btn = document.getElementById('scan'), st = document.getElementById('st'),
         progbox = document.getElementById('progbox');
   let coins = null;
-  function showCoins() { if (!coins) { progbox.hidden = false; coins = coinStack(progbox); } }
+  function showCoins() { if (!coins) { progbox.hidden = false; coins = coinStack(progbox, 37, 36); } }
 
   async function poll() {
     let s;
@@ -876,8 +855,8 @@ font:15px "IBM Plex Sans",system-ui,sans-serif}h2{font:700 24px "PT Serif",Georg
 a{color:#a8a8a8;font-size:13px}input{font:16px "IBM Plex Sans",system-ui;padding:7px 10px;width:160px;border-radius:2px;
 border:1px solid #6e6e6e;background:#212121;color:inherit}button{font:700 15px "IBM Plex Sans",system-ui;padding:7px 16px;
 border:0;border-bottom:3px solid #b39776;border-radius:2px;background:#ffd7a8;color:#2c2116;cursor:pointer;margin-left:6px}
-.coinbox{display:flex;width:80px;height:72px;margin:0 auto;align-items:flex-end;justify-content:center}
-.coinbox svg{zoom:2}</style></head><body>
+.coinbox{margin:0 auto 4px}
+.coinbox{background-repeat:no-repeat}</style></head><body>
 <div class="box"><h2>GE Dip Scanner</h2>
 <p>What's your cash stack? It picks items that fit it (5% to 40% of your stack per item).
 You can change it any time on the main page.</p>
@@ -908,48 +887,27 @@ font:15px "IBM Plex Sans",system-ui,sans-serif}h2{font:700 24px "PT Serif",Georg
 a{color:#a8a8a8;font-size:13px}input{font:16px "IBM Plex Sans",system-ui;padding:7px 10px;width:160px;border-radius:2px;
 border:1px solid #6e6e6e;background:#212121;color:inherit}button{font:700 15px "IBM Plex Sans",system-ui;padding:7px 16px;
 border:0;border-bottom:3px solid #b39776;border-radius:2px;background:#ffd7a8;color:#2c2116;cursor:pointer;margin-left:6px}
-.coinbox{display:flex;width:80px;height:72px;margin:0 auto;align-items:flex-end;justify-content:center}
-.coinbox svg{zoom:2}</style></head><body>
+.coinbox{margin:0 auto 4px}
+.coinbox{background-repeat:no-repeat}</style></head><body>
 <div class="box"><h2>GE Dip Scanner</h2><div class="coinbox" id="p"></div><p id="st">Running the first scan…</p></div>
 <script>
-// Scan progress as a pile of gold coin stacks rising from a single coin. Drawn here, not images.
-// The pile rises smoothly at a capped speed, so even a 2-second rescan shows it grow, and a scan
-// only reloads the page once the pile is full.
-function coinStack(box){
-  const NS='http://www.w3.org/2000/svg', el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e};
-  box.textContent='';
-  const svg=el('svg',{viewBox:'0 0 40 36',width:40,height:36},box);
-  const g=el('linearGradient',{id:'cg'},el('defs',{}));
-  [['0','#8a5200'],['.3','#ffd21f'],['.6','#f5b800'],['1','#8a5200']].forEach(([o,c])=>el('stop',{offset:o,'stop-color':c},g));
-  // [centre x, base y, width, full height], in the order they rise
-  const cols=[[8,32,7,13],[15,34,6,7],[15,29,7,24],[23,31,7,20],[31,28,7,27]];
-  const draw=[2,4,3,0,1];  // back stacks first so front ones sit in front of them
-  const lone=el('ellipse',{cx:24,cy:34,rx:3.5,ry:1.3,fill:'#f5b800',stroke:'#8a5200','stroke-width':.6});
-  const parts=[];
-  draw.forEach(i=>{const [x,b,w]=cols[i];parts[i]={
-    body:el('rect',{x:x-w/2,width:w,fill:'url(#cg)'}),
-    rings:el('path',{stroke:'#a86a00','stroke-width':.4,fill:'none'}),
-    top:el('ellipse',{cx:x,rx:w/2,ry:1.3,fill:'#ffe066',stroke:'#a86a00','stroke-width':.5})}});
-  function render(p){
-    lone.style.display=p<0.9?'':'none';
-    cols.forEach(([x,b,w,h],i)=>{
-      const f=Math.max(0,Math.min(1,(p-i*0.12)/0.5)), hh=Math.floor(h*f/2)*2, P=parts[i];
-      const vis=hh>0?'':'none';P.body.style.display=P.rings.style.display=P.top.style.display=vis;
-      P.body.setAttribute('y',b-hh);P.body.setAttribute('height',hh);P.top.setAttribute('cy',b-hh);
-      let d='';for(let y=b-2;y>b-hh;y-=2)d+='M'+(x-w/2)+' '+y+'h'+w;P.rings.setAttribute('d',d);
-    });
-  }
+// Scan progress as the coin pile animation (coins.png: 32 frames side by side, small pile to full).
+// It plays at a capped speed, so even a 2-second rescan shows the pile grow, and the page reloads
+// only once the pile is full.
+function coinStack(box, w, h){
+  const FRAMES=32;
+  box.style.cssText+=';width:'+w+'px;height:'+h+'px;background:url(/coins.png) 0 0/'+(w*FRAMES)+'px '+h+'px no-repeat';
   let shown=0, target=0.05, done=null, last=performance.now();
-  render(0);
   (function tick(t){
-    shown=Math.min(target,shown+(t-last)/1500);last=t;render(shown);
+    shown=Math.min(target,shown+(t-last)/1600);last=t;
+    box.style.backgroundPositionX=-Math.round(shown*(FRAMES-1))*w+'px';
     if(done&&shown>=1){setTimeout(done,400);return;}
     requestAnimationFrame(tick);
   })(last);
   return {progress(f){target=Math.max(target,Math.min(0.9,f));},
           finish(cb){target=1;done=cb;}};
 }
-const coins=coinStack(document.getElementById('p'));
+const coins=coinStack(document.getElementById('p'),96,94);
 async function poll(){let s;try{s=await (await fetch('/status')).json()}catch(e){return}
 if(s.last){coins.finish(()=>location.reload());return}
 if(s.error&&!s.running){document.getElementById('st').textContent='Scan failed: '+s.error;document.getElementById('st').className='err';return}
@@ -1011,7 +969,7 @@ class _Handler(BaseHTTPRequestHandler):
         pass  # keep the console quiet
 
     def _send(self, code, body, ctype="text/html; charset=utf-8"):
-        data = body.encode("utf-8")
+        data = body if isinstance(body, bytes) else body.encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Cache-Control", "no-store")
@@ -1027,6 +985,12 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path == "/status":
             self._json({"running": _State.running, "done": _State.done, "total": _State.total,
                         "name": _State.name, "error": _State.error, "last": _State.last})
+        elif self.path == "/coins.png":
+            try:
+                with open(os.path.join(HERE, "coins.png"), "rb") as f:
+                    self._send(200, f.read(), "image/png")
+            except OSError:
+                self._send(404, "Not found", "text/plain")
         elif self.path in ("/", "/index.html"):
             if not _State.html:
                 if not _State.running and _needs_setup(load_config()):
