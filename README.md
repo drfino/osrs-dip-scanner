@@ -56,7 +56,7 @@ moves with the market and with your stack:
 
 Leave the cash stack empty to scan only your `watchlist.txt`.
 
-What the page shows: the **best 20 items worth a bid**, ranked by profit per flip. A short list
+What the page shows: the **best 10 items worth a bid** (your 8 GE slots plus a couple of spares), ranked by profit per flip. A short list
 just means a quiet market.
 
 - **Normal now**: what it sells for today, with its 7-day average below.
@@ -102,7 +102,7 @@ The page covers the cash stack. For anything else, create `config.json` next to 
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `max_shown` | 20 | How many items to show. |
+| `max_shown` | 10 | How many items to show. |
 | `beat_by_pct` | 1 | How far above the latest dip's low to bid, to get ahead of other lowballers. Higher = fills a bit sooner, less profit. |
 | `min_profit_pct` | 2 | Least profit to suggest, after tax. Also sets how deep a dip must be (this + 2% tax + `beat_by_pct`). |
 | `undercut_pct` | 0.5 | How far under the usual recent instabuy price the sale is priced. |

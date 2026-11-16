@@ -64,7 +64,7 @@ DEFAULT_CONFIG = {
     "min_daily_volume": 25,    # trades per day, so offers can actually fill
     "max_auto_items": 75,      # the busiest N items (by trades a day) per price step
     "max_steps": 3,            # if your band has too few dips, step down to cheaper items this many times
-    "max_shown": 20,           # show the best N items
+    "max_shown": 10,           # show the best N: your 8 GE slots plus a couple of spares
 }
 
 
