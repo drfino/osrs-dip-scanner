@@ -712,7 +712,8 @@ th.num {{ text-align:right }}
 .bar label {{ display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px }}
 .bar .status {{ font:12.5px var(--mono); color:var(--muted) }}
 .bar .status.err {{ color:var(--dip) }}
-.bar .coins {{ width:36px; height:32px; image-rendering:pixelated }}
+.bar .coinbox {{ display:inline-flex; width:40px; height:36px; align-items:flex-end; justify-content:center }}
+.bar .coinbox[hidden] {{ display:none }}
 </style></head><body>
 <header><h1><img src="https://oldschool.runescape.wiki/images/Coins_10000.png" alt="">GE Dip Scanner</h1>
 <span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} worth a bid{f", best {len(top)} shown" if len(with_spikes) > len(top) else ""}</span></header>
@@ -781,32 +782,70 @@ def phone_url():
 TOOLBAR = """<div class="bar">
   <button id="scan">Scan now</button>
   <label>Cash stack <input id="cash" type="text" value="__CASH__" placeholder="e.g. 15m" size="7"></label>
-  <img class="coins" id="prog" alt="" hidden>
+  <span class="coinbox" id="progbox" hidden></span>
   <span class="status" id="st">__STATUS__</span>
 </div>
 <script>
 (function () {
   const LAST = __LAST__;
-  const COINS=[1,2,3,4,5,25,100,250,1000,10000];function coinFor(f){return 'https://oldschool.runescape.wiki/images/Coins_'+COINS[Math.min(COINS.length-1,Math.floor((f||0)*COINS.length))]+'.png'};
+  // Scan progress as a pile of gold coin stacks rising from a single coin. Drawn here, not images.
+  // The pile rises smoothly at a capped speed, so even a 2-second rescan shows it grow, and a scan
+  // only reloads the page once the pile is full.
+  function coinStack(box){
+    const NS='http://www.w3.org/2000/svg', el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e};
+    box.textContent='';
+    const svg=el('svg',{viewBox:'0 0 40 36',width:40,height:36},box);
+    const g=el('linearGradient',{id:'cg'},el('defs',{}));
+    [['0','#8a5200'],['.3','#ffd21f'],['.6','#f5b800'],['1','#8a5200']].forEach(([o,c])=>el('stop',{offset:o,'stop-color':c},g));
+    // [centre x, base y, width, full height], in the order they rise
+    const cols=[[8,32,7,13],[15,34,6,7],[15,29,7,24],[23,31,7,20],[31,28,7,27]];
+    const draw=[2,4,3,0,1];  // back stacks first so front ones sit in front of them
+    const lone=el('ellipse',{cx:24,cy:34,rx:3.5,ry:1.3,fill:'#f5b800',stroke:'#8a5200','stroke-width':.6});
+    const parts=[];
+    draw.forEach(i=>{const [x,b,w]=cols[i];parts[i]={
+      body:el('rect',{x:x-w/2,width:w,fill:'url(#cg)'}),
+      rings:el('path',{stroke:'#a86a00','stroke-width':.4,fill:'none'}),
+      top:el('ellipse',{cx:x,rx:w/2,ry:1.3,fill:'#ffe066',stroke:'#a86a00','stroke-width':.5})}});
+    function render(p){
+      lone.style.display=p<0.9?'':'none';
+      cols.forEach(([x,b,w,h],i)=>{
+        const f=Math.max(0,Math.min(1,(p-i*0.12)/0.5)), hh=Math.floor(h*f/2)*2, P=parts[i];
+        const vis=hh>0?'':'none';P.body.style.display=P.rings.style.display=P.top.style.display=vis;
+        P.body.setAttribute('y',b-hh);P.body.setAttribute('height',hh);P.top.setAttribute('cy',b-hh);
+        let d='';for(let y=b-2;y>b-hh;y-=2)d+='M'+(x-w/2)+' '+y+'h'+w;P.rings.setAttribute('d',d);
+      });
+    }
+    let shown=0, target=0.05, done=null, last=performance.now();
+    render(0);
+    (function tick(t){
+      shown=Math.min(target,shown+(t-last)/1500);last=t;render(shown);
+      if(done&&shown>=1){setTimeout(done,400);return;}
+      requestAnimationFrame(tick);
+    })(last);
+    return {progress(f){target=Math.max(target,Math.min(0.9,f));},
+            finish(cb){target=1;done=cb;}};
+  }
   const btn = document.getElementById('scan'), st = document.getElementById('st'),
-        prog = document.getElementById('prog');
+        progbox = document.getElementById('progbox');
+  let coins = null;
+  function showCoins() { if (!coins) { progbox.hidden = false; coins = coinStack(progbox); } }
 
   async function poll() {
     let s;
     try { s = await (await fetch('/status')).json(); }
     catch (e) { st.textContent = 'Scanner stopped. Double-click GE Dip Scanner.bat to start it again.'; st.className = 'status err'; btn.disabled = true; return; }
     if (s.running) {
-      btn.disabled = true; prog.hidden = false; prog.src = coinFor((s.done || 0) / (s.total || 1));
+      btn.disabled = true; showCoins(); coins.progress((s.done || 0) / (s.total || 1));
       st.className = 'status'; st.textContent = 'Scanning ' + (s.done || 0) + '/' + (s.total || '?') + (s.name ? ' · ' + s.name : '');
-      setTimeout(poll, 700);
+      setTimeout(poll, 400);
     } else if (s.last && s.last !== LAST) {
-      location.reload();
+      if (coins) coins.finish(() => location.reload()); else location.reload();
     } else {
-      btn.disabled = false; prog.hidden = true;
+      btn.disabled = false; progbox.hidden = true; coins = null;
       if (s.error) { st.textContent = 'Scan failed: ' + s.error; st.className = 'status err'; }
     }
   }
-  function startScan() { fetch('/scan', { method: 'POST' }).then(poll); }
+  function startScan() { btn.disabled = true; showCoins(); fetch('/scan', { method: 'POST' }).then(poll); }
   btn.onclick = startScan;
   function parseGp(t) {
     const m = String(t).trim().toLowerCase().replace(/,/g, '').match(/^([0-9]*[.]?[0-9]+) *([kmb]?)$/);
@@ -837,7 +876,8 @@ font:15px "IBM Plex Sans",system-ui,sans-serif}h2{font:700 24px "PT Serif",Georg
 a{color:#a8a8a8;font-size:13px}input{font:16px "IBM Plex Sans",system-ui;padding:7px 10px;width:160px;border-radius:2px;
 border:1px solid #6e6e6e;background:#212121;color:inherit}button{font:700 15px "IBM Plex Sans",system-ui;padding:7px 16px;
 border:0;border-bottom:3px solid #b39776;border-radius:2px;background:#ffd7a8;color:#2c2116;cursor:pointer;margin-left:6px}
-.coins{width:72px;height:64px;image-rendering:pixelated}</style></head><body>
+.coinbox{display:flex;width:80px;height:72px;margin:0 auto;align-items:flex-end;justify-content:center}
+.coinbox svg{zoom:2}</style></head><body>
 <div class="box"><h2>GE Dip Scanner</h2>
 <p>What's your cash stack? It picks items that fit it (5% to 40% of your stack per item).
 You can change it any time on the main page.</p>
@@ -868,15 +908,53 @@ font:15px "IBM Plex Sans",system-ui,sans-serif}h2{font:700 24px "PT Serif",Georg
 a{color:#a8a8a8;font-size:13px}input{font:16px "IBM Plex Sans",system-ui;padding:7px 10px;width:160px;border-radius:2px;
 border:1px solid #6e6e6e;background:#212121;color:inherit}button{font:700 15px "IBM Plex Sans",system-ui;padding:7px 16px;
 border:0;border-bottom:3px solid #b39776;border-radius:2px;background:#ffd7a8;color:#2c2116;cursor:pointer;margin-left:6px}
-.coins{width:72px;height:64px;image-rendering:pixelated}</style></head><body>
-<div class="box"><h2>GE Dip Scanner</h2><img class="coins" id="p" src="https://oldschool.runescape.wiki/images/Coins_1.png" alt=""><p id="st">Running the first scan…</p></div>
+.coinbox{display:flex;width:80px;height:72px;margin:0 auto;align-items:flex-end;justify-content:center}
+.coinbox svg{zoom:2}</style></head><body>
+<div class="box"><h2>GE Dip Scanner</h2><div class="coinbox" id="p"></div><p id="st">Running the first scan…</p></div>
 <script>
-const COINS=[1,2,3,4,5,25,100,250,1000,10000];function coinFor(f){return 'https://oldschool.runescape.wiki/images/Coins_'+COINS[Math.min(COINS.length-1,Math.floor((f||0)*COINS.length))]+'.png'}
+// Scan progress as a pile of gold coin stacks rising from a single coin. Drawn here, not images.
+// The pile rises smoothly at a capped speed, so even a 2-second rescan shows it grow, and a scan
+// only reloads the page once the pile is full.
+function coinStack(box){
+  const NS='http://www.w3.org/2000/svg', el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e};
+  box.textContent='';
+  const svg=el('svg',{viewBox:'0 0 40 36',width:40,height:36},box);
+  const g=el('linearGradient',{id:'cg'},el('defs',{}));
+  [['0','#8a5200'],['.3','#ffd21f'],['.6','#f5b800'],['1','#8a5200']].forEach(([o,c])=>el('stop',{offset:o,'stop-color':c},g));
+  // [centre x, base y, width, full height], in the order they rise
+  const cols=[[8,32,7,13],[15,34,6,7],[15,29,7,24],[23,31,7,20],[31,28,7,27]];
+  const draw=[2,4,3,0,1];  // back stacks first so front ones sit in front of them
+  const lone=el('ellipse',{cx:24,cy:34,rx:3.5,ry:1.3,fill:'#f5b800',stroke:'#8a5200','stroke-width':.6});
+  const parts=[];
+  draw.forEach(i=>{const [x,b,w]=cols[i];parts[i]={
+    body:el('rect',{x:x-w/2,width:w,fill:'url(#cg)'}),
+    rings:el('path',{stroke:'#a86a00','stroke-width':.4,fill:'none'}),
+    top:el('ellipse',{cx:x,rx:w/2,ry:1.3,fill:'#ffe066',stroke:'#a86a00','stroke-width':.5})}});
+  function render(p){
+    lone.style.display=p<0.9?'':'none';
+    cols.forEach(([x,b,w,h],i)=>{
+      const f=Math.max(0,Math.min(1,(p-i*0.12)/0.5)), hh=Math.floor(h*f/2)*2, P=parts[i];
+      const vis=hh>0?'':'none';P.body.style.display=P.rings.style.display=P.top.style.display=vis;
+      P.body.setAttribute('y',b-hh);P.body.setAttribute('height',hh);P.top.setAttribute('cy',b-hh);
+      let d='';for(let y=b-2;y>b-hh;y-=2)d+='M'+(x-w/2)+' '+y+'h'+w;P.rings.setAttribute('d',d);
+    });
+  }
+  let shown=0, target=0.05, done=null, last=performance.now();
+  render(0);
+  (function tick(t){
+    shown=Math.min(target,shown+(t-last)/1500);last=t;render(shown);
+    if(done&&shown>=1){setTimeout(done,400);return;}
+    requestAnimationFrame(tick);
+  })(last);
+  return {progress(f){target=Math.max(target,Math.min(0.9,f));},
+          finish(cb){target=1;done=cb;}};
+}
+const coins=coinStack(document.getElementById('p'));
 async function poll(){let s;try{s=await (await fetch('/status')).json()}catch(e){return}
-if(s.last){location.reload();return}
+if(s.last){coins.finish(()=>location.reload());return}
 if(s.error&&!s.running){document.getElementById('st').textContent='Scan failed: '+s.error;document.getElementById('st').className='err';return}
-document.getElementById('p').src=coinFor((s.done||0)/(s.total||1));
-document.getElementById('st').textContent='Scanning '+(s.done||0)+'/'+(s.total||'?')+'…';setTimeout(poll,700)}
+coins.progress((s.done||0)/(s.total||1));
+document.getElementById('st').textContent='Scanning '+(s.done||0)+'/'+(s.total||'?')+'…';setTimeout(poll,400)}
 poll();
 </script></body></html>"""
 
