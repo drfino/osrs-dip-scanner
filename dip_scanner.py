@@ -56,6 +56,8 @@ DEFAULT_CONFIG = {
     "spike_recover_minutes": 60,
     "beat_by_pct": 1,          # bid this far above the latest dip's low, ahead of other lowballers
     "min_profit_pct": 2,       # never suggest a bid that leaves less than this after tax
+    "min_dip_pct": 3,          # smallest drop below the price around it that counts as a dip
+    "undercut_pct": 0.5,       # list this far under the usual recent instabuy price
     # Auto watchlist from your cash stack (0 = only use watchlist.txt).
     "cash_stack": 0,
     "min_item_pct": 5,         # cheapest item to watch, as % of your stack
@@ -360,6 +362,19 @@ def mid(p):
     return (lo + hi) / 2 if lo and hi else None
 
 
+def usual_instabuy(pts, hourly, cfg, now, fallback):
+    """What a slow sell lists at: just under where recent instabuys cluster, capped by the 7-day level."""
+    def level(prices):
+        return statistics.quantiles(prices, n=4)[2] if len(prices) >= 4 else None
+    recent = level([p["avgHighPrice"] for p in pts
+                    if p["timestamp"] >= now - 3 * 3600 and p.get("avgHighPrice")])
+    since = now - cfg["long_baseline_days"] * 86400
+    week = level([p["avgHighPrice"] for p in hourly if p["timestamp"] >= since and p.get("avgHighPrice")])
+    if recent is None:
+        return fallback
+    return min(recent, week or recent) * (1 - cfg["undercut_pct"] / 100)
+
+
 def long_run_mid(hourly, cfg, now):
     """Median mid-range price over the last long_baseline_days, from 1-hour averages."""
     since = now - cfg["long_baseline_days"] * 86400
@@ -382,11 +397,10 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     local = local_prices(pts, cfg)
     long_base = long_run_price(hourly, cfg, now)
 
-    # A dump worth bidding on must be deep enough that a bid beat_by_pct above it still clears
-    # min_profit_pct after tax. Only dips in the listing window count.
-    min_depth = cfg["min_profit_pct"] + GE_TAX * 100
+    # Any drop of min_dip_pct+ counts as a dip; whether it's worth a bid is decided below, by the
+    # profit a bid just above it makes at a realistic sale price. Only dips in the listing window count.
     beat = cfg["beat_by_pct"]
-    dump_cfg = dict(cfg, spike_min_pct=min_depth + beat)
+    dump_cfg = dict(cfg, spike_min_pct=cfg["min_dip_pct"])
     spikes, rejected, stale = find_spikes(pts, local, dump_cfg, now, long_base)
 
     # Typical wiggle around the local price, ignoring the spikes themselves: is this item calm?
@@ -404,12 +418,10 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     # high never makes a bid look better than it is.
     ref = min(normal, long_base) if long_base else normal
 
-    # Selling: you list mid-range (between the instasell and instabuy prices) and wait, rather
-    # than instaselling. Same rule: the lower of today's mid-range and the 7-day one.
-    recent_mids = [mid(p) for p in pts if p["timestamp"] >= now - 3 * 3600 and mid(p)]
-    mid_now = statistics.median(recent_mids) if len(recent_mids) >= 4 else normal
-    mid_long = long_run_mid(hourly, cfg, now)
-    sell_at = max(ref, min(mid_now, mid_long) if mid_long else mid_now)
+    # Selling: list just under the level recent instabuys keep coming back to (their 75th
+    # percentile, so the odd low one doesn't drag it down), the way a slow sell is priced.
+    # Never above the same over 7 days, never below the instasell price.
+    sell_at = max(ref, usual_instabuy(pts, hourly, cfg, now, normal))
 
     # Suggested bid: just above the most recent dip. A dip means a dump ran through every normal
     # buyer and reached a lowball offer at that price, which is now used up. Bidding just above it
