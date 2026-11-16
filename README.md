@@ -63,13 +63,13 @@ just means a quiet market.
 - **Deepest**: the biggest dip in the last day.
 - **Suggested bid**: where to leave your buy offer for one.
 - **Profit per flip**: what that bid makes on one item after tax, if you sell slowly by listing just
-  under the price recent instabuys keep coming back to (0.5% under it, and never above the same over
-  the last 7 days). An item only shows if this is at least 2%. The sale price is shown, and when the dip the bid is based on happened.
+  under the price the last hour's instabuys keep coming back to (0.5% under it, and never above the
+  same over the last 7 days). An item only shows if this is at least 2%. The sale price is shown, and when the dip the bid is based on happened.
 - Tags: **New** (wasn't on the list last time you looked) and **Choppy price** (jumps around a lot).
 
 ## How it works
 
-A **dip** is a 5-minute trade (an instasell, or an instabuy: a seller who listed cheap with no buy offers above them) at least 3% below both the price around it and the 7-day average,
+A **dip** is a 5-minute trade (an instasell, or an instabuy: a seller who listed cheap with no buy offers above them) at least 5% below both the price around it and the 7-day average,
 lasting 30 minutes or less and bouncing back within an hour. Slow price drops don't count, and an item
 only shows if it dipped in the last 18 hours.
 
@@ -104,8 +104,7 @@ The page covers the cash stack. For anything else, create `config.json` next to 
 | --- | --- | --- |
 | `max_shown` | 20 | How many items to show. |
 | `beat_by_pct` | 1 | How far above the latest dip's low to bid, to get ahead of other lowballers. Higher = fills a bit sooner, less profit. |
-| `min_profit_pct` | 2 | Least profit to suggest, after tax. |
-| `min_dip_pct` | 3 | Smallest drop below the price around it that counts as a dip. |
+| `min_profit_pct` | 2 | Least profit to suggest, after tax. Also sets how deep a dip must be (this + 2% tax + `beat_by_pct`). |
 | `undercut_pct` | 0.5 | How far under the usual recent instabuy price the sale is priced. |
 | `max_auto_items` | 75 | How many of the busiest items to watch in each price range. |
 | `min_daily_volume` | 25 | Trades per day an item needs to be picked at all. |

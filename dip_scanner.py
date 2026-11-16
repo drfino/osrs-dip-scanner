@@ -56,7 +56,6 @@ DEFAULT_CONFIG = {
     "spike_recover_minutes": 60,
     "beat_by_pct": 1,          # bid this far above the latest dip's low, ahead of other lowballers
     "min_profit_pct": 2,       # never suggest a bid that leaves less than this after tax
-    "min_dip_pct": 3,          # smallest drop below the price around it that counts as a dip
     "undercut_pct": 0.5,       # list this far under the usual recent instabuy price
     # Auto watchlist from your cash stack (0 = only use watchlist.txt).
     "cash_stack": 0,
@@ -359,9 +358,9 @@ def find_spikes(pts, local, cfg, now, long_base=None):
 def usual_instabuy(pts, hourly, cfg, now, fallback):
     """What a slow sell lists at: just under where recent instabuys cluster, capped by the 7-day level."""
     def level(prices):
-        return statistics.quantiles(prices, n=4)[2] if len(prices) >= 4 else None
+        return statistics.quantiles(prices, n=4)[2] if len(prices) >= 3 else None
     recent = level([p["avgHighPrice"] for p in pts
-                    if p["timestamp"] >= now - 3 * 3600 and p.get("avgHighPrice")])
+                    if p["timestamp"] >= now - 3600 and p.get("avgHighPrice")])
     since = now - cfg["long_baseline_days"] * 86400
     week = level([p["avgHighPrice"] for p in hourly if p["timestamp"] >= since and p.get("avgHighPrice")])
     if recent is None:
@@ -384,10 +383,11 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     local = local_prices(pts, cfg)
     long_base = long_run_price(hourly, cfg, now)
 
-    # Any drop of min_dip_pct+ counts as a dip; whether it's worth a bid is decided below, by the
-    # profit a bid just above it makes at a realistic sale price. Only dips in the listing window count.
+    # A dip must be deep enough that a bid beat_by_pct above it clears min_profit_pct after tax
+    # even at the instasell price: a real hit on the lowball queue, not a wobble.
+    # Only dips in the listing window count.
     beat = cfg["beat_by_pct"]
-    dump_cfg = dict(cfg, spike_min_pct=cfg["min_dip_pct"])
+    dump_cfg = dict(cfg, spike_min_pct=cfg["min_profit_pct"] + GE_TAX * 100 + beat)
     spikes, rejected, stale = find_spikes(pts, local, dump_cfg, now, long_base)
 
     # Typical wiggle around the local price, ignoring the spikes themselves: is this item calm?
@@ -405,7 +405,7 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     # high never makes a bid look better than it is.
     ref = min(normal, long_base) if long_base else normal
 
-    # Selling: list just under the level recent instabuys keep coming back to (their 75th
+    # Selling: list just under the level the last hour's instabuys keep coming back to (their 75th
     # percentile, so the odd low one doesn't drag it down), the way a slow sell is priced.
     # Never above the same over 7 days, never below the instasell price.
     sell_at = max(ref, usual_instabuy(pts, hourly, cfg, now, normal))
