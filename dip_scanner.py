@@ -571,8 +571,8 @@ def sparkline(r, w=720, h=56):
     dots = ""
     for e in r["spikes"]:
         x = (e["ts"] - t0) / max(t1 - t0, 1) * w
-        dots += (f'<circle cx="{x:.1f}" cy="{y_of(e["low"]):.1f}" r="3"><title>-{e["pct"]:.1f}% at '
-                 f'{gp(e["low"])}</title></circle>')
+        dots += (f'<circle cx="{x:.1f}" cy="{y_of(e["low"]):.1f}" r="3"><title>Dipped to {round(e["low"]):,} '
+                 f'(-{e["pct"]:.0f}%)</title></circle>')
     bid_line = ""
     if r["pick"]:
         by = y_of(r["pick"]["bid"])
@@ -661,6 +661,7 @@ th.num {{ text-align:right }}
 .spark .lo {{ stroke:var(--sell) }}
 .spark .bid {{ stroke:var(--gold); stroke-dasharray:5 3 }}
 .spark circle {{ fill:var(--dip) }}
+th[title] {{ cursor:help; text-decoration:underline dotted #777; text-underline-offset:3px }}
 .bar {{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; margin:14px 0 4px;
   padding:9px 12px; background:var(--panel); border:1px solid var(--line); border-radius:4px }}
 .bar button {{ font:700 14px var(--sans); padding:5px 14px; border-radius:2px; border:0;
@@ -698,12 +699,15 @@ bid just above those low sales. Put in buy offers on a few of them at once at th
 and check back now and then. When one fills, sell it at whatever it's going for then. Est. sale and
 est. profit come from current prices, after the 2% tax. Rescan once in a while and move your
 bids to what's on the list.</p>
-<p>Chart of the last 24 hours: <i style="background:var(--sell)"></i>price when players sell fast
-<i style="background:var(--buy)"></i>price when players buy fast <i style="border-top:2px dashed var(--gold)"></i>your buy offer <i class="dot"></i>dips</p>
+<p>Chart of the last 24 hours: <i style="background:var(--sell)"></i>buy offers filling
+<i style="background:var(--buy)"></i>sell offers filling <i style="border-top:2px dashed var(--gold)"></i>your buy offer <i class="dot"></i>dips</p>
 </div>
 <div class="wrap"><table>
-<thead><tr><th>Item</th><th>Last 24 hours</th><th class="num">Dipped to</th><th class="num">Buy offer</th>
-<th class="num">Est. sale</th><th class="num">Est. profit</th></tr></thead>
+<thead><tr><th>Item</th><th>Last 24 hours</th>
+<th class="num" title="The lowest price of the latest dip, how far below normal it was, and how long ago">Dipped to</th>
+<th class="num" title="The price to put your GE buy offer in at: just above the latest dip">Buy offer</th>
+<th class="num" title="Roughly what it sells for now. Check the price again when your offer fills">Est. sale</th>
+<th class="num" title="Est. sale minus your buy offer, after the 2% GE tax">Est. profit</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
 </main>
 <script>
