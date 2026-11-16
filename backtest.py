@@ -7,6 +7,7 @@ The first run downloads the prices, one request a second as the wiki asks: about
 30 days. Later runs only download days they don't have yet. The first 7 days are only used as
 history (the scanner compares against a 7-day average), so 30 days gives about 23 days of results.
 
+Items: the price range the scanner uses for your cash stack, with enough trades a day.
 Results: backtest_results.txt (summary) and backtest_dips.csv (one line per dip).
 Limits: prices are 5-minute averages of the trades RuneLite sees, and it can't know whether
 another lowballer was ahead of you in line. Good for comparing rules, rough on exact odds.
@@ -27,12 +28,11 @@ DATA = os.path.join(ds.HERE, "backtest_data")
 RESULTS = os.path.join(ds.HERE, "backtest_results.txt")
 DIPS_CSV = os.path.join(ds.HERE, "backtest_dips.csv")
 MIN_STORED_PRICE = 50_000       # cheaper items aren't saved at all
-POOL_MIN_PRICE = 100_000        # items checked: typical price at least this...
-WARMUP_DAYS = 7                 # ...with this much history before the first scan
+WARMUP_DAYS = 7                 # history needed before the first replayed scan
 SCAN_EVERY = 3600               # replay a scan once an hour
 WINDOWS = (6, 24, 48)           # hours a bid is left in to fill
 DEPTHS = ((5, 10), (10, 15), (15, 25), (25, 35), (35, 101))
-PRICES = ((100e3, 500e3), (500e3, 1e6), (1e6, 2e6), (2e6, 5e6), (5e6, 1e12))
+PRICES = ((0, 500e3), (500e3, 1e6), (1e6, 2e6), (2e6, 5e6), (5e6, 1e12))
 RULES = (                       # (name, % above the dip, never more than this % under normal)
     ("1% above the dip (now)", 1, None),
     ("2% above the dip", 2, None),
@@ -85,10 +85,12 @@ def load(all_days, cfg):
                 for i, (lo, hi, lv, hv) in items.items():
                     raw.setdefault(int(i), []).append((int(ts), lo, hi, lv, hv))
     days = len(all_days)
+    # The same price range the scanner uses for your cash stack (100k to 50m if none is set).
+    lo_price, hi_price = ds.price_band(cfg) or (100_000, 50_000_000)
     series = {}
     for i, pts in raw.items():
         lows = [p[1] for p in pts if p[1]]
-        if not lows or statistics.median(lows) < POOL_MIN_PRICE:
+        if not lows or not lo_price <= statistics.median(lows) <= hi_price:
             continue
         if sum(p[3] + p[4] for p in pts) / days < cfg["min_daily_volume"]:
             continue
@@ -203,14 +205,16 @@ def summary(rows, all_days, n_items):
     odds_table("Chance the current bid (1% above the dip) fills, by how deep the dip was:",
                [(f"{a}-{b}%" if b < 101 else f"{a}%+", [r for r in rows if a <= r["depth_pct"] < b]) for a, b in DEPTHS])
     odds_table("Same, by the item's normal price:",
-               [(f"{ds.gp(a)}-{ds.gp(b)}" if b < 1e12 else f"{ds.gp(a)}+", [r for r in rows if a <= r["normal"] < b]) for a, b in PRICES])
+               [(f"{ds.gp(a)}-{ds.gp(b)}" if b < 1e12 else f"{ds.gp(a)}+", [r for r in rows if a <= r["normal"] < b])
+                for a, b in PRICES if any(a <= r["normal"] < b for r in rows)])
 
     lines.append("Bid rules compared (bid left in for 48h; profit is what it actually sold for after, minus tax):")
-    lines.append(f"  {'':32}{'filled':>8}{'avg profit/flip':>17}{'avg per dip listed':>20}")
+    lines.append(f"  {'':32}{'filled':>8}{'made money':>12}{'median/flip':>13}{'avg per dip listed':>20}")
     for name, _, _ in RULES:
         profits = [r[name][3] for r in rows if r[name][3] is not None]
         lines.append(f"  {name:32}{pct(len(profits), len(rows)):>8}"
-                     f"{ds.gp(statistics.mean(profits)) if profits else '-':>17}"
+                     f"{pct(sum(p > 0 for p in profits), len(profits)):>12}"
+                     f"{ds.gp(statistics.median(profits)) if profits else '-':>13}"
                      f"{ds.gp(sum(profits) / len(rows)) if rows else '-':>20}")
     lines.append("")
 
