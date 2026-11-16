@@ -40,7 +40,7 @@ Your PC has to be on with the scanner running.
 
 ## Details
 
-- It looks at items priced between 5% and 40% of your cash stack that trade at least 25 times a
+- It looks at items priced between 3% and 40% of your cash stack that trade at least 25 times a
   day, and shows the 10 with the most profit.
 - While the page is open it checks again every 10 minutes.
 - To stop it, close the small **GE Dip Scanner** window.
@@ -77,7 +77,7 @@ the scanner, for example `{"max_shown": 10}`. Updates never change it.
 | `undercut_pct` | 0.5 | How far under recent buyers the Est. sale price is, in %. |
 | `max_auto_items` | 75 | How many of the busiest items to check in your price range. |
 | `min_daily_volume` | 25 | Trades a day an item needs to be checked at all. |
-| `min_item_pct` / `max_offer_pct` | 5 / 40 | Cheapest and priciest items to check, as % of your stack. |
+| `min_item_pct` / `max_offer_pct` | 3 / 40 | Cheapest and priciest items to check, as % of your stack. |
 
 To always check certain items, whatever their price, add their names to `watchlist.txt` next to the
 scanner, one per line, spelled as on the prices site. It starts empty.

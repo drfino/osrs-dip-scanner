@@ -58,7 +58,7 @@ DEFAULT_CONFIG = {
     "undercut_pct": 0.5,       # list this far under the usual recent instabuy price
     # Auto watchlist from your cash stack (0 = only use watchlist.txt).
     "cash_stack": 0,
-    "min_item_pct": 5,         # cheapest item to watch, as % of your stack
+    "min_item_pct": 3,         # cheapest item to watch, as % of your stack
     "max_offer_pct": 40,       # most one offer may use, as % of your stack (also the priciest item)
     "min_daily_volume": 25,    # trades per day, so offers can actually fill
     "max_auto_items": 75,      # the busiest N items (by trades a day) per price step
@@ -852,7 +852,7 @@ border:0;border-bottom:3px solid #b39776;border-radius:2px;background:#ffd7a8;co
 
 SETUP_PAGE = SMALL_HEAD + """
 <div class="box"><h2>GE Dip Scanner</h2>
-<p>What's your cash stack? It picks items that fit it (5% to 40% of your stack per item).
+<p>What's your cash stack? It picks items that fit it (3% to 40% of your stack per item).
 You can change it any time on the main page.</p>
 <form id="f"><input id="cash" placeholder="e.g. 15m" autofocus><button>Scan</button></form>
 <div class="err" id="err"></div>
