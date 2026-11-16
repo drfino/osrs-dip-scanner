@@ -5,30 +5,26 @@ for my own flipping.
 
 ![The scanner page](docs/desktop.png)
 
-## Why this makes money
+## How it works
 
-Sometimes a player sells an item far under its price because they want the gold right away. The GE
-gives their item to the highest buy offer waiting, even if that offer is low. A few minutes later the
-price is back to normal.
+Most items only have a few buy offers near the normal price. When someone sells fast and uses those
+up, the rest of their sale falls through to the lowball offers below, and the price dips.
 
-If your buy offer is the one waiting, you get the item cheap and sell it at the normal price.
-
-## What the scanner does
-
-It checks the busiest items in your price range and finds the ones where this has happened in the
-last day. For each one it shows:
+The scanner checks the busiest items in your price range for dips in the last day, and suggests a
+bid just above the last lowball that filled. That puts your offer first in line for the next fast
+seller. For each item it shows:
 
 - **Dip**: how far the price fell last time, and when.
-- **Buy at**: the price to put your buy offer in at. It's just above where the price fell to last time.
-- **Sell at**: roughly what you can sell it for once you have it.
+- **Buy at**: your bid.
+- **Sell at**: roughly what it sells for normally.
 - **Profit**: what you make on one item after the 2% GE tax.
 
 ## How to use it
 
 1. Put in a buy offer for one of an item at its **Buy at** price.
 2. Wait. It can take a few hours or a day.
-3. When it buys, sell it at the **Sell at** price.
-4. If it hasn't bought anything in a day or two, cancel it and try another item on the list.
+3. When it fills, sell it at the **Sell at** price.
+4. If it hasn't filled in a day or two, cancel it and try another item on the list.
 
 ## Setup (Windows, once)
 

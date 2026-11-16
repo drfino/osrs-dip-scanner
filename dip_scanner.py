@@ -704,12 +704,12 @@ th.num {{ text-align:right }}
 <main>
 {toolbar}
 <div class="legend">
-<p>Sometimes a player sells an item far under its price because they want the gold right away.
-The item goes to the highest buy offer waiting, even a low one, and a few minutes later the price is
-back to normal. Put in a buy offer at the <b>Buy at</b> price and wait for that to happen again. When
-it buys, sell it at the <b>Sell at</b> price. <b>Profit</b> is what you make on one item after the
-2% GE tax. <b>Dip</b> is how far the price fell last time, and when. If an offer hasn't bought
-anything in a day or two, try another item.</p>
+<p>Most items only have a few buy offers near the normal price. When someone sells fast and uses
+those up, the rest of their sale falls through to the lowball offers below, and the price dips.
+This lists items where that happened recently. <b>Buy at</b> is a bid just above the last lowball
+that filled, so you're first in line for the next fast seller. <b>Sell at</b> is roughly what it
+sells for normally, and <b>Profit</b> is per item after the 2% GE tax. If a bid hasn't filled in a
+day or two, try another item.</p>
 <p>Chart of the last 24 hours: <i style="background:var(--sell)"></i>price when players sell fast
 <i style="background:var(--buy)"></i>price when players buy fast <i style="border-top:2px dashed var(--gold)"></i>your buy offer
 <i class="dot"></i>dips</p>
