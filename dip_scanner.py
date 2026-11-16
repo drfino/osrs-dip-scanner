@@ -11,7 +11,6 @@ A "dip" is a short, sharp drop that bounces back, measured against the price ARO
     min_profit_pct after tax,
   - it lasts no longer than spike_max_minutes,
   - and the price recovers to within half that depth within spike_recover_minutes.
-Items whose price normally jumps around a lot are flagged "choppy" and ranked lower.
 
 Data: OSRS Wiki real-time prices API (prices.runescape.wiki), the same data as the site.
 No installs needed, Python 3.8+ standard library only.
@@ -51,7 +50,6 @@ DEFAULT_CONFIG = {
     "local_window_minutes": 90,
     "long_baseline_days": 7,
     "spike_max_age_hours": 18,
-    "choppy_noise_pct": 3,
     "spike_max_minutes": 30,
     "spike_recover_minutes": 60,
     "beat_by_pct": 1,          # bid this far above the latest dip's low, ahead of other lowballers
@@ -390,13 +388,6 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
     dump_cfg = dict(cfg, spike_min_pct=cfg["min_profit_pct"] + GE_TAX * 100 + beat)
     spikes, rejected, stale = find_spikes(pts, local, dump_cfg, now, long_base)
 
-    # Typical wiggle around the local price, ignoring the spikes themselves: is this item calm?
-    spike_ts = {p["timestamp"] for e in spikes for p in pts if e["start"] - 300 <= p["timestamp"] <= e["end"] + 300}
-    devs = [abs(p["avgLowPrice"] - local[p["timestamp"]]) / local[p["timestamp"]] * 100
-            for p in pts if p.get("avgLowPrice") and p["timestamp"] in local and p["timestamp"] not in spike_ts]
-    noise = statistics.median(devs) if devs else 0
-    choppy = noise > cfg["choppy_noise_pct"]
-
     # "Normal now": what it actually sells for these days, the median of the last 3 hours.
     recent_lows = [p["avgLowPrice"] for p in pts if p["timestamp"] >= now - 3 * 3600 and p.get("avgLowPrice")]
     normal = statistics.median(recent_lows) if len(recent_lows) >= 4 else statistics.median(lows)
@@ -440,7 +431,7 @@ def analyze(item, recent, latest, cfg, now, hourly=()):
         "item": item, "base": normal, "long_base": long_base, "ref": ref, "sell_at": sell_at, "stale": stale,
         "spikes": spikes, "rejected": rejected, "deepest": deepest,
         "pick": pick, "score": score, "now_low": now_low, "now_low_ts": now_low_ts,
-        "now_pct": now_pct, "pts": pts, "noise": noise, "choppy": choppy,
+        "now_pct": now_pct, "pts": pts, 
     }
 
 
@@ -596,7 +587,6 @@ def sparkline(r, w=540, h=46):
         if 0 <= by <= h:
             bid_line = f'<line class="bid" x1="0" x2="{w}" y1="{by:.1f}" y2="{by:.1f}"/>'
     return (f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}" preserveAspectRatio="none" class="spark">'
-            f'<line class="median" x1="0" x2="{w}" y1="{y_of(r["base"]):.1f}" y2="{y_of(r["base"]):.1f}"/>'
             f'{bid_line}{line("avgHighPrice", "hi")}{line("avgLowPrice", "lo")}{dots}</svg>')
 
 
@@ -610,35 +600,17 @@ def icon_html(it):
 
 
 def row_html(r, cfg, now):
-    it, d, p = r["item"], r["deepest"], r["pick"]
-    budget = offer_budget(cfg)
-    qty_html = "<div class='sub over'>over one offer's budget</div>" if p and budget and p["bid"] > budget else ""
-    live = ""
-    if r["choppy"]:
-        live = f'<span class="chip warn" title="Normally moves about {r['noise']:.1f}% every 5 min">Choppy price</span>'
+    it, p = r["item"], r["pick"]
+    dip = p["dip"]
     return f"""
 <tr data-id="{it['id']}">
-  <td class="name"><div class="namewrap">{icon_html(it)}<div><a href="{ITEM_PAGE.format(it['id'])}" target="_blank" rel="noopener">{escape(it['name'])}</a>
-      {f"<div>{live}</div>" if live else ""}</div></div></td>
+  <td class="name"><div class="namewrap">{icon_html(it)}<div><a href="{ITEM_PAGE.format(it['id'])}" target="_blank" rel="noopener">{escape(it['name'])}</a></div></div></td>
   <td class="chart">{sparkline(r)}</td>
-  <td class="num normal">{gp(r['base'])}{f"<div class='sub'>7d avg {gp(r['long_base'])}</div>" if r.get('long_base') else ''}</td>
-  <td class="num deepest">{f"-{d['pct']:.1f}%<div class='sub'>{gp(d['low'])} · {ago(d['ts'], now)}</div>" if d else '<span class="sub">none</span>'}</td>
-  <td class="num bidcell">{f"{p['bid']:,}<div class='sub'>{p['depth']:.1f}% under normal</div>{qty_html}" if p else '<span class="sub">too shallow to bid</span>'}</td>
-  <td class="num evcell">{f"{gp(p['profit'])}<div class='sub'>{p['profit_pct']:.1f}% after tax, selling at ~{gp(r['sell_at'])}</div><div class='sub'>bid just above the dip {ago(p['dip']['ts'], now)}</div>" if p else '-'}</td>
+  <td class="num dip" data-label="Dip">-{dip['pct']:.0f}%<div class="sub">{ago(dip['ts'], now)}</div></td>
+  <td class="num buy" data-label="Buy at">{p['bid']:,}</td>
+  <td class="num sell" data-label="Sell at">{round(r['sell_at']):,}</td>
+  <td class="num profit" data-label="Profit">{gp(p['profit'])}</td>
 </tr>"""
-
-
-def watch_text(cfg, n):
-    info = cfg.get("_watch_info") or {}
-    band = info.get("band")
-    scanned = cfg.get("_scanned") or []
-    if not band:
-        return f"{len(scanned) or n} items from your watchlist"
-    prices = [info["prices"][m["id"]] for m in scanned if m["id"] in info.get("prices", {})]
-    auto = len(prices)
-    extra = f" + {info['manual']} from your list" if info.get("manual") else ""
-    rng = f"{gp(min(prices))}–{gp(max(prices))}" if prices else "-"
-    return f"{auto + info.get('manual', 0)} items: {auto} priced {rng} with {cfg['min_daily_volume']}+ trades/day{extra}"
 
 
 def build_report(results, cfg, now, toolbar=""):
@@ -646,8 +618,7 @@ def build_report(results, cfg, now, toolbar=""):
     top = with_spikes[:cfg["max_shown"]]
     rows = "".join(row_html(r, cfg, now) for r in top)
     if not rows:
-        rows = ('<tr><td colspan="6" class="empty">Nothing worth a bid right now. '
-                'Quiet market: check back later.</td></tr>')
+        rows = '<tr><td colspan="6" class="empty">No good dips right now. Check back later.</td></tr>'
 
     html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -670,12 +641,13 @@ header {{ display:flex; flex-wrap:wrap; gap:6px 22px; align-items:center; backgr
 h1 {{ font:700 23px var(--serif); margin:0; display:flex; align-items:center; gap:10px; color:#fff }}
 h1 img {{ width:30px; height:28px; image-rendering:pixelated }}
 main {{ padding:0 max(16px, 3vw) }}
-.meta {{ color:#d6d0c2; font-size:13px }}
 .legend {{ color:var(--muted); font-size:12.5px; margin:8px 0 12px; max-width:92ch }}
 .legend p {{ margin:6px 0 }}
 .legend i {{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin:0 4px 0 10px }}
 .wrap {{ overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:4px }}
-table {{ border-collapse:collapse; width:100%; min-width:1200px }}
+table {{ border-collapse:collapse; width:100%; min-width:760px }}
+td.chart {{ width:45% }}
+td.chart .spark {{ width:100%; min-width:260px }}
 th {{ text-align:left; font-size:13px; color:#fff; padding:9px 12px; border-bottom:1px solid var(--line);
   font-weight:700; white-space:nowrap; background:#2a2a2a }}
 td {{ padding:6px 12px; border-bottom:1px solid var(--line); vertical-align:middle }}
@@ -689,17 +661,15 @@ th.num {{ text-align:right }}
 .name a {{ color:var(--link); font-weight:600; text-decoration:none }}
 .name a:hover {{ text-decoration:underline }}
 .sub {{ color:var(--muted); font-size:11.5px; font-family:var(--mono) }}
-.bidcell {{ color:var(--gold); font-weight:600 }}
-.evcell {{ font-weight:600 }}
-.sub.over {{ color:var(--warn) }}
-.chip {{ display:inline-block; margin-top:4px; padding:0 6px; border-radius:2px; font-size:11px; font-weight:700 }}
-.chip.warn {{ border:1px solid var(--warn); color:var(--warn) }}
+.num.buy {{ color:var(--gold); font-weight:600 }}
+.num.profit {{ color:var(--buy); font-weight:600 }}
+.legend .dot {{ width:7px; height:7px; border-radius:50%; background:var(--dip) }}
+.chip {{ display:inline-block; padding:0 6px; border-radius:2px; font-size:11px; font-weight:700 }}
 .chip.new {{ background:var(--buy); color:#0b1a10; margin-right:4px }}
 .spark {{ display:block; overflow:visible }}
 .spark polyline {{ fill:none; stroke-width:1.3; stroke-linejoin:round }}
 .spark .hi {{ stroke:var(--buy); opacity:.6 }}
 .spark .lo {{ stroke:var(--sell) }}
-.spark .median {{ stroke:var(--muted); stroke-dasharray:2 3; opacity:.7 }}
 .spark .bid {{ stroke:var(--gold); stroke-dasharray:5 3 }}
 .spark circle {{ fill:var(--dip) }}
 .bar {{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; margin:14px 0 4px;
@@ -714,40 +684,37 @@ th.num {{ text-align:right }}
 .bar .status.err {{ color:var(--dip) }}
 .bar .coinbox {{ display:inline-block }}
 .bar .coinbox[hidden] {{ display:none }}
-/* Phones: one card per item with the bid and profit side by side and the chart full width.
-   Normal price and deepest dip are left out; the bid and profit notes already cover them. */
+/* Phones: one card per item. Name, then dip / buy / sell / profit in a 2x2 grid, then the chart. */
 @media (max-width:700px) {{
   header {{ padding:8px 16px }}
-  .legend .how {{ display:none }}
   table, tbody, tr, td {{ display:block; min-width:0 }}
-  table {{ min-width:0 }}
-  thead, td.normal, td.deepest {{ display:none }}
-  tr {{ display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; padding:12px; border-bottom:1px solid var(--line) }}
+  thead {{ display:none }}
+  tr {{ display:grid; grid-template-columns:1fr 1fr; gap:10px 12px; padding:12px; border-bottom:1px solid var(--line) }}
   tr:last-child {{ border-bottom:0 }}
   td {{ padding:0; border:0 }}
   td.name {{ grid-column:1 / -1; min-width:0 }}
   td.chart {{ grid-column:1 / -1; order:1 }}
-  td.chart .spark {{ width:100% }}
-  td.num {{ text-align:left; white-space:normal; font-size:16px }}
-  td.bidcell::before, td.evcell::before {{ display:block; font:600 11px var(--sans); color:var(--muted); text-transform:uppercase; letter-spacing:.04em }}
-  td.bidcell::before {{ content:"Suggested bid" }}
-  td.evcell::before {{ content:"Profit per flip" }}
+  td.chart {{ width:auto }}
+  td.num {{ text-align:left; font-size:16px }}
+  td.num::before {{ content:attr(data-label); display:block; font:600 11px var(--sans); color:var(--muted);
+    text-transform:uppercase; letter-spacing:.04em }}
 }}
 </style></head><body>
-<header><h1><img src="https://oldschool.runescape.wiki/images/Coins_10000.png" alt="">GE Dip Scanner</h1>
-<span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} worth a bid{f", best {len(top)} shown" if len(with_spikes) > len(top) else ""}</span></header>
+<header><h1><img src="https://oldschool.runescape.wiki/images/Coins_10000.png" alt="">GE Dip Scanner</h1></header>
 <main>
 {toolbar}
 <div class="legend">
-<p class="how">These items recently <b>dipped</b> far below their normal price, best money-makers first.
-Leave a buy offer for one at the <b>Suggested bid</b>; it fills when the next dip hits.
-Once it fills, list it to sell at the price under <b>Profit per flip</b>, just under what buyers have been paying. Check back daily, and move any offer that hasn't filled in a day or two.</p>
-<p>Chart: <i style="background:var(--sell)"></i>instasell <i style="background:var(--buy)"></i>instabuy
-<i style="border-top:1px dashed var(--muted)"></i>normal price <i style="border-top:2px dashed var(--gold)"></i>your bid, red dots are dips.</p>
+<p>Sometimes a player dumps an item far below its price, and the price bounces back within minutes.
+That's a <b>dip</b>. Put in a buy offer at the <b>Buy at</b> price and leave it: when the item dips
+again, your offer buys it cheap. Then sell it at the <b>Sell at</b> price. <b>Profit</b> is per item,
+after the GE's 2% tax. If an offer hasn't filled in a day or two, move it to another item.</p>
+<p>Chart of the last 24 hours: <i style="background:var(--sell)"></i>price when players sell fast
+<i style="background:var(--buy)"></i>price when players buy fast <i style="border-top:2px dashed var(--gold)"></i>your buy offer
+<i class="dot"></i>dips</p>
 </div>
 <div class="wrap"><table>
-<thead><tr><th>Item</th><th>Last 24h</th><th class="num">Normal now</th>
-<th class="num">Deepest</th><th class="num">Suggested bid</th><th class="num">Profit per flip</th></tr></thead>
+<thead><tr><th>Item</th><th>Last 24 hours</th><th class="num">Dip</th><th class="num">Buy at</th>
+<th class="num">Sell at</th><th class="num">Profit</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
 </main>
 <script>
@@ -1024,8 +991,7 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(200, WAITING_PAGE)
                 return
             cfg = load_config()
-            status = (f"Last scan {datetime.fromtimestamp(_State.last):%H:%M} · rescans every "
-                      f"{AUTO_SCAN_MINUTES} min" if _State.last else "")
+            status = f"Updated {datetime.fromtimestamp(_State.last):%H:%M}" if _State.last else ""
             if self.client_address[0] == "127.0.0.1" and phone_url():
                 status += f" · on your phone: {phone_url()}"
             bar = (TOOLBAR.replace("__CASH__", gp(cfg["cash_stack"]) if cfg.get("cash_stack") else "")
