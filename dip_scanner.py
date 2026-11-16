@@ -620,9 +620,9 @@ def row_html(r, cfg, now):
 <tr data-id="{it['id']}">
   <td class="name"><div class="namewrap">{icon_html(it)}<div><a href="{ITEM_PAGE.format(it['id'])}" target="_blank" rel="noopener">{escape(it['name'])}</a>
       {f"<div>{live}</div>" if live else ""}</div></div></td>
-  <td>{sparkline(r)}</td>
-  <td class="num">{gp(r['base'])}{f"<div class='sub'>7d avg {gp(r['long_base'])}</div>" if r.get('long_base') else ''}</td>
-  <td class="num">{f"-{d['pct']:.1f}%<div class='sub'>{gp(d['low'])} · {ago(d['ts'], now)}</div>" if d else '<span class="sub">none</span>'}</td>
+  <td class="chart">{sparkline(r)}</td>
+  <td class="num normal">{gp(r['base'])}{f"<div class='sub'>7d avg {gp(r['long_base'])}</div>" if r.get('long_base') else ''}</td>
+  <td class="num deepest">{f"-{d['pct']:.1f}%<div class='sub'>{gp(d['low'])} · {ago(d['ts'], now)}</div>" if d else '<span class="sub">none</span>'}</td>
   <td class="num bidcell">{f"{p['bid']:,}<div class='sub'>{p['depth']:.1f}% under normal</div>{qty_html}" if p else '<span class="sub">too shallow to bid</span>'}</td>
   <td class="num evcell">{f"{gp(p['profit'])}<div class='sub'>{p['profit_pct']:.1f}% after tax, selling at ~{gp(r['sell_at'])}</div><div class='sub'>bid just above the dip {ago(p['dip']['ts'], now)}</div>" if p else '-'}</td>
 </tr>"""
@@ -714,13 +714,32 @@ th.num {{ text-align:right }}
 .bar .status.err {{ color:var(--dip) }}
 .bar .coinbox {{ display:inline-block }}
 .bar .coinbox[hidden] {{ display:none }}
+/* Phones: one card per item with the bid and profit side by side and the chart full width.
+   Normal price and deepest dip are left out; the bid and profit notes already cover them. */
+@media (max-width:700px) {{
+  header {{ padding:8px 16px }}
+  .legend .how {{ display:none }}
+  table, tbody, tr, td {{ display:block; min-width:0 }}
+  table {{ min-width:0 }}
+  thead, td.normal, td.deepest {{ display:none }}
+  tr {{ display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; padding:12px; border-bottom:1px solid var(--line) }}
+  tr:last-child {{ border-bottom:0 }}
+  td {{ padding:0; border:0 }}
+  td.name {{ grid-column:1 / -1; min-width:0 }}
+  td.chart {{ grid-column:1 / -1; order:1 }}
+  td.chart .spark {{ width:100% }}
+  td.num {{ text-align:left; white-space:normal; font-size:16px }}
+  td.bidcell::before, td.evcell::before {{ display:block; font:600 11px var(--sans); color:var(--muted); text-transform:uppercase; letter-spacing:.04em }}
+  td.bidcell::before {{ content:"Suggested bid" }}
+  td.evcell::before {{ content:"Profit per flip" }}
+}}
 </style></head><body>
 <header><h1><img src="https://oldschool.runescape.wiki/images/Coins_10000.png" alt="">GE Dip Scanner</h1>
 <span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} worth a bid{f", best {len(top)} shown" if len(with_spikes) > len(top) else ""}</span></header>
 <main>
 {toolbar}
 <div class="legend">
-<p>These items recently <b>dipped</b> far below their normal price, best money-makers first.
+<p class="how">These items recently <b>dipped</b> far below their normal price, best money-makers first.
 Leave a buy offer for one at the <b>Suggested bid</b>; it fills when the next dip hits.
 Once it fills, list it to sell at the price under <b>Profit per flip</b>, just under what buyers have been paying. Check back daily, and move any offer that hasn't filled in a day or two.</p>
 <p>Chart: <i style="background:var(--sell)"></i>instasell <i style="background:var(--buy)"></i>instabuy
@@ -841,8 +860,12 @@ TOOLBAR = """<div class="bar">
     if (v === null) { st.textContent = 'Type your cash like 15m, 1.2b or 15000000'; st.className = 'status err'; return; }
     setting({ cash_stack: v });
   };
+  // Rescan every few minutes while the page is open, and straight away when you open or return to
+  // the page and the results are older than that, so a phone check never starts on stale prices.
+  const stale = () => !LAST || Date.now() / 1000 - LAST > __AUTO__ * 60;
   setInterval(() => { if (!document.hidden) startScan(); }, __AUTO__ * 60 * 1000);
-  poll();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && stale() && !btn.disabled) startScan(); });
+  if (stale()) startScan(); else poll();
 })();
 </script>"""
 
