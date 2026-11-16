@@ -653,29 +653,31 @@ def build_report(results, cfg, now, toolbar=""):
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GE Dip Scanner</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Libre+Franklin:wght@400;600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&family=PT+Serif:wght@700&display=swap" rel="stylesheet">
+<link rel="icon" href="https://oldschool.runescape.wiki/images/Coins_10000.png">
 <style>
 :root {{
-  --bg:#f3f1ec; --panel:#fffdf8; --fg:#24221d; --muted:#6f6a5e; --line:#ddd7ca;
-  --buy:#1f9d55; --sell:#c4561b; --gold:#a57b12; --dip:#c0262d; --warn:#b07d10;
-  --sans:"Libre Franklin",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --bg:#343434; --head:#54524a; --panel:#212121; --fg:#ececec; --muted:#a8a8a8; --line:#474747;
+  --buy:#2bdc51; --sell:#ec7d2f; --gold:#f0c572; --link:#ffc56d; --dip:#ff5c5c; --warn:#f0c572;
+  --btn:#ffd7a8; --btn-edge:#b39776; --btn-fg:#2c2116;
+  --serif:"PT Serif",Georgia,serif; --sans:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace; color-scheme:dark;
 }}
-@media (prefers-color-scheme: dark) {{ :root {{
-  --bg:#1d1c19; --panel:#262420; --fg:#ece6d8; --muted:#a39c8b; --line:#3a372f;
-  --buy:#3ccf74; --sell:#ee8243; --gold:#e3b341; --dip:#ff5a5f; --warn:#e3b341; color-scheme:dark; }} }}
 * {{ box-sizing:border-box }}
-body {{ margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 var(--sans);
-  padding:20px max(16px, 3vw) 40px }}
-header {{ display:flex; flex-wrap:wrap; gap:8px 24px; align-items:baseline; margin-bottom:6px }}
-h1 {{ font-weight:800; font-size:26px; margin:0; letter-spacing:-.01em }}
-.meta {{ color:var(--muted); font-size:13px }}
+body {{ margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 var(--sans); padding:0 0 40px }}
+header {{ display:flex; flex-wrap:wrap; gap:6px 22px; align-items:center; background:var(--head);
+  border-bottom:3px solid var(--gold); padding:9px max(16px, 3vw) }}
+h1 {{ font:700 23px var(--serif); margin:0; display:flex; align-items:center; gap:10px; color:#fff }}
+h1 img {{ width:30px; height:28px; image-rendering:pixelated }}
+main {{ padding:0 max(16px, 3vw) }}
+.meta {{ color:#d6d0c2; font-size:13px }}
 .legend {{ color:var(--muted); font-size:12.5px; margin:8px 0 12px; max-width:92ch }}
 .legend p {{ margin:6px 0 }}
 .legend i {{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin:0 4px 0 10px }}
-.wrap {{ overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:6px }}
+.wrap {{ overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:4px }}
 table {{ border-collapse:collapse; width:100%; min-width:1200px }}
-th {{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted);
-  padding:10px 12px; border-bottom:1px solid var(--line); font-weight:600; white-space:nowrap }}
+th {{ text-align:left; font-size:13px; color:#fff; padding:9px 12px; border-bottom:1px solid var(--line);
+  font-weight:700; white-space:nowrap; background:#2a2a2a }}
 td {{ padding:6px 12px; border-bottom:1px solid var(--line); vertical-align:middle }}
 tr:last-child td {{ border-bottom:0 }}
 td.empty {{ color:var(--muted); padding:24px 12px }}
@@ -684,34 +686,37 @@ th.num {{ text-align:right }}
 .name {{ min-width:230px }}
 .namewrap {{ display:flex; align-items:center; gap:10px }}
 .icon {{ width:36px; height:32px; object-fit:contain; flex:none; image-rendering:pixelated }}
-.name a {{ color:var(--fg); font-weight:600; text-decoration:none }}
+.name a {{ color:var(--link); font-weight:600; text-decoration:none }}
 .name a:hover {{ text-decoration:underline }}
 .sub {{ color:var(--muted); font-size:11.5px; font-family:var(--mono) }}
 .bidcell {{ color:var(--gold); font-weight:600 }}
 .evcell {{ font-weight:600 }}
 .sub.over {{ color:var(--warn) }}
-.chip {{ display:inline-block; margin-top:4px; padding:1px 7px; border-radius:99px; font-size:11px; font-weight:600 }}
+.chip {{ display:inline-block; margin-top:4px; padding:0 6px; border-radius:2px; font-size:11px; font-weight:700 }}
 .chip.warn {{ border:1px solid var(--warn); color:var(--warn) }}
 .chip.new {{ background:var(--buy); color:#0b1a10; margin-right:4px }}
 .spark {{ display:block; overflow:visible }}
 .spark polyline {{ fill:none; stroke-width:1.3; stroke-linejoin:round }}
-.spark .hi {{ stroke:var(--buy); opacity:.5 }}
+.spark .hi {{ stroke:var(--buy); opacity:.6 }}
 .spark .lo {{ stroke:var(--sell) }}
 .spark .median {{ stroke:var(--muted); stroke-dasharray:2 3; opacity:.7 }}
 .spark .bid {{ stroke:var(--gold); stroke-dasharray:5 3 }}
 .spark circle {{ fill:var(--dip) }}
 .bar {{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; margin:14px 0 4px;
-  padding:10px 12px; background:var(--panel); border:1px solid var(--line); border-radius:6px }}
-.bar button {{ font:600 14px var(--sans); padding:7px 16px; border-radius:5px; border:0; cursor:pointer;
-  background:var(--gold); color:#1d1c19 }}
+  padding:9px 12px; background:var(--panel); border:1px solid var(--line); border-radius:4px }}
+.bar button {{ font:700 14px var(--sans); padding:5px 14px; border-radius:2px; border:0;
+  border-bottom:3px solid var(--btn-edge); cursor:pointer; background:var(--btn); color:var(--btn-fg) }}
+.bar input {{ font:13px var(--mono); padding:4px 7px; background:var(--bg); color:var(--fg);
+  border:1px solid #6e6e6e; border-radius:2px }}
 .bar button:disabled {{ opacity:.55; cursor:default }}
 .bar label {{ display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px }}
 .bar .status {{ font:12.5px var(--mono); color:var(--muted) }}
 .bar .status.err {{ color:var(--dip) }}
-.bar progress {{ width:140px; accent-color:var(--gold) }}
+.bar .coins {{ width:36px; height:32px; image-rendering:pixelated }}
 </style></head><body>
-<header><h1>GE Dip Scanner</h1>
+<header><h1><img src="https://oldschool.runescape.wiki/images/Coins_10000.png" alt="">GE Dip Scanner</h1>
 <span class="meta">{datetime.fromtimestamp(now).strftime('%a %d %b, %H:%M')} · {watch_text(cfg, len(results))} · {len(with_spikes)} worth a bid{f", best {len(top)} shown" if len(with_spikes) > len(top) else ""}</span></header>
+<main>
 {toolbar}
 <div class="legend">
 <p>These items recently <b>dipped</b> far below their normal price, best money-makers first.
@@ -724,6 +729,7 @@ Once it fills, list it to sell at the price under <b>Profit per flip</b>, just u
 <thead><tr><th>Item</th><th>Last 24h</th><th class="num">Normal now</th>
 <th class="num">Deepest</th><th class="num">Suggested bid</th><th class="num">Profit per flip</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
+</main>
 <script>
 // Mark items that weren't on the list the last time you looked at this page.
 (function () {{
@@ -775,12 +781,13 @@ def phone_url():
 TOOLBAR = """<div class="bar">
   <button id="scan">Scan now</button>
   <label>Cash stack <input id="cash" type="text" value="__CASH__" placeholder="e.g. 15m" size="7"></label>
-  <progress id="prog" max="1" value="0" hidden></progress>
+  <img class="coins" id="prog" alt="" hidden>
   <span class="status" id="st">__STATUS__</span>
 </div>
 <script>
 (function () {
   const LAST = __LAST__;
+  const COINS=[1,2,3,4,5,25,100,250,1000,10000];function coinFor(f){return 'https://oldschool.runescape.wiki/images/Coins_'+COINS[Math.min(COINS.length-1,Math.floor((f||0)*COINS.length))]+'.png'};
   const btn = document.getElementById('scan'), st = document.getElementById('st'),
         prog = document.getElementById('prog');
 
@@ -789,7 +796,7 @@ TOOLBAR = """<div class="bar">
     try { s = await (await fetch('/status')).json(); }
     catch (e) { st.textContent = 'Scanner stopped. Double-click GE Dip Scanner.bat to start it again.'; st.className = 'status err'; btn.disabled = true; return; }
     if (s.running) {
-      btn.disabled = true; prog.hidden = false; prog.max = s.total || 1; prog.value = s.done || 0;
+      btn.disabled = true; prog.hidden = false; prog.src = coinFor((s.done || 0) / (s.total || 1));
       st.className = 'status'; st.textContent = 'Scanning ' + (s.done || 0) + '/' + (s.total || '?') + (s.name ? ' · ' + s.name : '');
       setTimeout(poll, 700);
     } else if (s.last && s.last !== LAST) {
@@ -822,14 +829,17 @@ TOOLBAR = """<div class="bar">
 </script>"""
 
 SETUP_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>GE Dip Scanner</title>
-<style>body{margin:0;display:grid;place-items:center;height:100vh;background:#1d1c19;color:#ece6d8;
-font:15px system-ui,sans-serif}@media (prefers-color-scheme: light){body{background:#f3f1ec;color:#24221d}}
-.box{max-width:420px;text-align:center}input{font:16px system-ui;padding:8px 10px;width:160px;border-radius:5px;
-border:1px solid #6f6a5e;background:transparent;color:inherit}button{font:600 15px system-ui;padding:9px 18px;
-border:0;border-radius:5px;background:#e3b341;color:#1d1c19;cursor:pointer;margin-left:6px}
-p{color:#a39c8b}a{color:#a39c8b;font-size:13px}.err{color:#ff5a5f;min-height:1.4em}</style></head><body>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=PT+Serif:wght@700&display=swap" rel="stylesheet">
+<link rel="icon" href="https://oldschool.runescape.wiki/images/Coins_10000.png">
+<style>body{margin:0;display:grid;place-items:center;height:100vh;background:#343434;color:#ececec;
+font:15px "IBM Plex Sans",system-ui,sans-serif}h2{font:700 24px "PT Serif",Georgia,serif;color:#fff}
+.box{text-align:center;max-width:420px}.err{color:#ff5c5c;min-height:1.4em}p{color:#a8a8a8}
+a{color:#a8a8a8;font-size:13px}input{font:16px "IBM Plex Sans",system-ui;padding:7px 10px;width:160px;border-radius:2px;
+border:1px solid #6e6e6e;background:#212121;color:inherit}button{font:700 15px "IBM Plex Sans",system-ui;padding:7px 16px;
+border:0;border-bottom:3px solid #b39776;border-radius:2px;background:#ffd7a8;color:#2c2116;cursor:pointer;margin-left:6px}
+.coins{width:72px;height:64px;image-rendering:pixelated}</style></head><body>
 <div class="box"><h2>GE Dip Scanner</h2>
-<p>What's your cash stack? It picks items that fit it (about 5% to 29% of your stack per item).
+<p>What's your cash stack? It picks items that fit it (5% to 40% of your stack per item).
 You can change it any time on the main page.</p>
 <form id="f"><input id="cash" placeholder="e.g. 15m" autofocus><button>Scan</button></form>
 <div class="err" id="err"></div>
@@ -850,15 +860,22 @@ def _needs_setup(cfg):
 
 
 WAITING_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>GE Dip Scanner</title>
-<style>body{margin:0;display:grid;place-items:center;height:100vh;background:#1d1c19;color:#ece6d8;
-font:15px system-ui,sans-serif}@media (prefers-color-scheme: light){body{background:#f3f1ec;color:#24221d}}
-.box{text-align:center}progress{width:260px;accent-color:#e3b341}.err{color:#ff5a5f}</style></head><body>
-<div class="box"><h2>GE Dip Scanner</h2><p id="st">Running the first scan…</p><progress id="p" max="1" value="0"></progress></div>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=PT+Serif:wght@700&display=swap" rel="stylesheet">
+<link rel="icon" href="https://oldschool.runescape.wiki/images/Coins_10000.png">
+<style>body{margin:0;display:grid;place-items:center;height:100vh;background:#343434;color:#ececec;
+font:15px "IBM Plex Sans",system-ui,sans-serif}h2{font:700 24px "PT Serif",Georgia,serif;color:#fff}
+.box{text-align:center;max-width:420px}.err{color:#ff5c5c;min-height:1.4em}p{color:#a8a8a8}
+a{color:#a8a8a8;font-size:13px}input{font:16px "IBM Plex Sans",system-ui;padding:7px 10px;width:160px;border-radius:2px;
+border:1px solid #6e6e6e;background:#212121;color:inherit}button{font:700 15px "IBM Plex Sans",system-ui;padding:7px 16px;
+border:0;border-bottom:3px solid #b39776;border-radius:2px;background:#ffd7a8;color:#2c2116;cursor:pointer;margin-left:6px}
+.coins{width:72px;height:64px;image-rendering:pixelated}</style></head><body>
+<div class="box"><h2>GE Dip Scanner</h2><img class="coins" id="p" src="https://oldschool.runescape.wiki/images/Coins_1.png" alt=""><p id="st">Running the first scan…</p></div>
 <script>
+const COINS=[1,2,3,4,5,25,100,250,1000,10000];function coinFor(f){return 'https://oldschool.runescape.wiki/images/Coins_'+COINS[Math.min(COINS.length-1,Math.floor((f||0)*COINS.length))]+'.png'}
 async function poll(){let s;try{s=await (await fetch('/status')).json()}catch(e){return}
 if(s.last){location.reload();return}
 if(s.error&&!s.running){document.getElementById('st').textContent='Scan failed: '+s.error;document.getElementById('st').className='err';return}
-const p=document.getElementById('p');p.max=s.total||1;p.value=s.done||0;
+document.getElementById('p').src=coinFor((s.done||0)/(s.total||1));
 document.getElementById('st').textContent='Scanning '+(s.done||0)+'/'+(s.total||'?')+'…';setTimeout(poll,700)}
 poll();
 </script></body></html>"""
