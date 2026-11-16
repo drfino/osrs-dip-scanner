@@ -356,12 +356,6 @@ def find_spikes(pts, local, cfg, now, long_base=None):
     return spikes, rejected, stale
 
 
-def mid(p):
-    """Midway between what sellers and buyers paid in one time bucket (None if either is missing)."""
-    lo, hi = p.get("avgLowPrice"), p.get("avgHighPrice")
-    return (lo + hi) / 2 if lo and hi else None
-
-
 def usual_instabuy(pts, hourly, cfg, now, fallback):
     """What a slow sell lists at: just under where recent instabuys cluster, capped by the 7-day level."""
     def level(prices):
@@ -373,13 +367,6 @@ def usual_instabuy(pts, hourly, cfg, now, fallback):
     if recent is None:
         return fallback
     return min(recent, week or recent) * (1 - cfg["undercut_pct"] / 100)
-
-
-def long_run_mid(hourly, cfg, now):
-    """Median mid-range price over the last long_baseline_days, from 1-hour averages."""
-    since = now - cfg["long_baseline_days"] * 86400
-    mids = [mid(p) for p in hourly if p["timestamp"] >= since and mid(p)]
-    return statistics.median(mids) if len(mids) >= 24 else None
 
 
 def long_run_price(hourly, cfg, now):
