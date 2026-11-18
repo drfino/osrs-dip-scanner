@@ -660,7 +660,7 @@ th.num {{ text-align:right }}
 .num.profit {{ color:var(--buy); font-weight:600 }}
 .legend .dot {{ width:7px; height:7px; border-radius:50%; background:var(--dip) }}
 .chip {{ display:inline-block; padding:0 6px; border-radius:2px; font-size:11px; font-weight:700 }}
-.chip.new {{ background:var(--buy); color:#0b1a10; margin-right:4px }}
+.chip.new {{ background:var(--buy); color:#0b1a10; margin-left:6px; white-space:nowrap }}
 .spark {{ display:block; overflow:visible }}
 .spark polyline {{ fill:none; stroke-width:1.3; stroke-linejoin:round }}
 .spark .hi {{ stroke:var(--buy); opacity:.6 }}
@@ -729,7 +729,7 @@ bids to what's on the list.</p>
       ids.push(r.dataset.id);
       if (Array.isArray(last) && last.indexOf(r.dataset.id) === -1) {{
         const a = r.querySelector('.name a');
-        if (a) a.insertAdjacentHTML('beforebegin', '<span class="chip new">New</span>');
+        if (a) a.insertAdjacentHTML('afterend', '<span class="chip new">New</span>');
       }}
     }});
     try {{ localStorage.setItem(KEY, JSON.stringify(ids)); }} catch (e) {{}}
