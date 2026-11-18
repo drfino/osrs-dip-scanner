@@ -51,7 +51,7 @@ DEFAULT_CONFIG = {
     "contact": "personal GE dip scanner, Discord: derf01",
     "local_window_minutes": 90,
     "long_baseline_days": 7,
-    "spike_max_age_hours": 18,
+    "spike_max_age_hours": 12,
     "spike_max_minutes": 30,
     "spike_recover_minutes": 60,
     "beat_by_pct": 1,          # bid this far above the latest dip's low, ahead of other lowballers

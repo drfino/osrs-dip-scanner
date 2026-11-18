@@ -50,7 +50,7 @@ Your PC has to be on with the scanner running.
 <summary><b>How the numbers are worked out</b></summary>
 
 - **Dip**: a price at least 5% below both the price around it and the item's 7-day average, that
-  lasted 30 minutes or less and bounced back within an hour. Only dips from the last 18 hours count.
+  lasted 30 minutes or less and bounced back within an hour. Only dips from the last 12 hours count, because older dips fill much less often.
   The Dipped to column shows the low of the latest dip, how far below normal that was, and how long ago.
 - **Buy offer**: 1% above the low of the latest dip. That dip used up the buy offer someone had at
   that price, so an offer just above it is first in line for the next dump. Offers end in 111
