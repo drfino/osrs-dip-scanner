@@ -637,13 +637,13 @@ def build_report(results, cfg, now, toolbar=""):
   --mono:"IBM Plex Mono",ui-monospace,monospace; color-scheme:dark;
 }}
 * {{ box-sizing:border-box }}
-body {{ margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 var(--sans); padding:0 0 40px }}
+body {{ margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 var(--sans); padding:0 0 16px }}
 header {{ display:flex; flex-wrap:wrap; gap:6px 22px; align-items:center; background:var(--head);
   border-bottom:3px solid var(--gold); padding:9px calc(max(0px, (100% - 1640px) / 2) + max(16px, 3vw)) }}
 h1 {{ font:700 23px var(--serif); margin:0; display:flex; align-items:center; gap:10px; color:#fff }}
 h1 img {{ width:30px; height:28px; image-rendering:pixelated }}
 main {{ padding:0 max(16px, 3vw); max-width:1640px; margin:0 auto }}
-.legend {{ color:var(--muted); font-size:12.5px; margin:8px 0 12px; max-width:92ch }}
+.legend {{ color:var(--muted); font-size:12.5px; margin:8px 0 12px }}
 .legend p {{ margin:6px 0 }}
 .legend i {{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin:0 4px 0 10px }}
 .wrap {{ overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:4px }}
@@ -653,7 +653,7 @@ th.chart, td.chart {{ padding-left:28px }}
 td.name {{ white-space:nowrap; padding-right:28px }}
 th {{ text-align:left; font-size:13px; color:#fff; padding:9px 12px; border-bottom:1px solid var(--line);
   font-weight:700; white-space:nowrap; background:#2a2a2a }}
-td {{ padding:6px 12px; border-bottom:1px solid var(--line); vertical-align:middle }}
+td {{ padding:5px 12px; border-bottom:1px solid var(--line); vertical-align:middle }}
 tr:last-child td {{ border-bottom:0 }}
 td.empty {{ color:var(--muted); padding:24px 12px }}
 .num {{ font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:center; white-space:nowrap }}
