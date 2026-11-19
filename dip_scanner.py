@@ -603,11 +603,11 @@ def row_html(r, now):
     return f"""
 <tr data-id="{it['id']}">
   <td class="name"><div class="namewrap">{icon_html(it)}<div><a href="{ITEM_PAGE.format(it['id'])}" target="_blank" rel="noopener">{escape(it['name'])}</a></div></div></td>
-  <td class="chart">{sparkline(r)}</td>
-  <td class="num dip" data-label="Dipped to">{round(dip['low']):,}<div class="sub">-{dip['pct']:.0f}%, {ago(dip['ts'], now)}</div></td>
   <td class="num buy" data-label="Buy offer">{p['bid']:,}</td>
+  <td class="num dip" data-label="Dipped to">{round(dip['low']):,}<div class="sub">-{dip['pct']:.0f}%, {ago(dip['ts'], now)}</div></td>
   <td class="num sell" data-label="Est. sale">{round(r['sell_at']):,}</td>
   <td class="num profit" data-label="Est. profit">{gp(p['profit'])}</td>
+  <td class="chart">{sparkline(r)}</td>
 </tr>"""
 
 
@@ -634,15 +634,18 @@ def build_report(results, cfg, now, toolbar=""):
 * {{ box-sizing:border-box }}
 body {{ margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 var(--sans); padding:0 0 40px }}
 header {{ display:flex; flex-wrap:wrap; gap:6px 22px; align-items:center; background:var(--head);
-  border-bottom:3px solid var(--gold); padding:9px max(16px, 3vw) }}
+  border-bottom:3px solid var(--gold); padding:9px calc(max(0px, (100% - 1640px) / 2) + max(16px, 3vw)) }}
 h1 {{ font:700 23px var(--serif); margin:0; display:flex; align-items:center; gap:10px; color:#fff }}
 h1 img {{ width:30px; height:28px; image-rendering:pixelated }}
-main {{ padding:0 max(16px, 3vw) }}
+main {{ padding:0 max(16px, 3vw); max-width:1640px; margin:0 auto }}
 .legend {{ color:var(--muted); font-size:12.5px; margin:8px 0 12px; max-width:92ch }}
 .legend p {{ margin:6px 0 }}
 .legend i {{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin:0 4px 0 10px }}
 .wrap {{ overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:4px }}
-table {{ border-collapse:collapse; width:100%; min-width:1100px }}
+table {{ border-collapse:collapse; width:100%; min-width:960px }}
+tbody tr:hover td {{ background:rgba(255,255,255,.035) }}
+th.chart, td.chart {{ padding-left:28px }}
+td.name {{ white-space:nowrap }}
 th {{ text-align:left; font-size:13px; color:#fff; padding:9px 12px; border-bottom:1px solid var(--line);
   font-weight:700; white-space:nowrap; background:#2a2a2a }}
 td {{ padding:6px 12px; border-bottom:1px solid var(--line); vertical-align:middle }}
@@ -661,7 +664,7 @@ th.num {{ text-align:right }}
 .legend .dot {{ width:7px; height:7px; border-radius:50%; background:var(--dip) }}
 .chip {{ display:inline-block; padding:0 6px; border-radius:2px; font-size:11px; font-weight:700 }}
 .chip.new {{ background:var(--buy); color:#0b1a10; margin-left:6px; white-space:nowrap }}
-.spark {{ display:block; overflow:visible }}
+.spark {{ display:block; overflow:visible; width:100%; max-width:720px; height:auto }}
 .spark polyline {{ fill:none; stroke-width:1.3; stroke-linejoin:round }}
 .spark .hi {{ stroke:var(--buy); opacity:.6 }}
 .spark .lo {{ stroke:var(--sell) }}
@@ -688,8 +691,8 @@ th[title] {{ cursor:help; text-decoration:underline dotted #777; text-underline-
   tr {{ display:grid; grid-template-columns:1fr 1fr; gap:10px 12px; padding:12px; border-bottom:1px solid var(--line) }}
   tr:last-child {{ border-bottom:0 }}
   td {{ padding:0; border:0 }}
-  td.name {{ grid-column:1 / -1; min-width:0 }}
-  td.chart {{ grid-column:1 / -1; order:1 }}
+  td.name {{ grid-column:1 / -1; min-width:0; white-space:normal }}
+  td.chart {{ grid-column:1 / -1; order:1; padding:0 }}
   td.chart .spark {{ width:100%; height:auto }}
   td.num {{ text-align:left; font-size:16px }}
   td.num::before {{ content:attr(data-label); display:block; font:600 11px var(--sans); color:var(--muted);
@@ -709,11 +712,12 @@ bids to what's on the list.</p>
 <i style="background:var(--buy)"></i>sell offers filling <i style="border-top:2px dashed var(--gold)"></i>your buy offer <i class="dot"></i>dips</p>
 </div>
 <div class="wrap"><table>
-<thead><tr><th>Item</th><th>Last 24 hours</th>
-<th class="num" title="The lowest price of the latest dip, how far below normal it was, and how long ago">Dipped to</th>
+<thead><tr><th>Item</th>
 <th class="num" title="The price to put your GE buy offer in at: just above the latest dip">Buy offer</th>
+<th class="num" title="The lowest price of the latest dip, how far below normal it was, and how long ago">Dipped to</th>
 <th class="num" title="Roughly what it sells for now. Check the price again when your offer fills">Est. sale</th>
-<th class="num" title="Est. sale minus your buy offer, after the 2% GE tax">Est. profit</th></tr></thead>
+<th class="num" title="Est. sale minus your buy offer, after the 2% GE tax">Est. profit</th>
+<th class="chart">Last 24 hours</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
 </main>
 <script>
