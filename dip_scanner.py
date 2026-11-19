@@ -549,11 +549,13 @@ def scan_item(it, cfg, cache, now):
 
 # ----------------------------------------------------------------------------- HTML report
 
-def sparkline(r, w=720, h=56):
-    pts = r["pts"]
-    if not pts:
+def sparkline(r, hours, w=720, h=56):
+    """The last `hours` of prices: the same window dips are counted in."""
+    if not r["pts"]:
         return ""
-    t0, t1 = pts[0]["timestamp"], pts[-1]["timestamp"]
+    t1 = r["pts"][-1]["timestamp"]
+    t0 = t1 - hours * 3600
+    pts = [p for p in r["pts"] if p["timestamp"] >= t0]
     vals = [p[k] for p in pts for k in ("avgLowPrice", "avgHighPrice") if p.get(k)] + [r["base"]]
     # The top of the chart ignores the odd trade far above normal (an overpriced buy offer someone
     # sold into), so it doesn't squash the rest of the chart flat. Those just run off the top.
@@ -576,6 +578,8 @@ def sparkline(r, w=720, h=56):
 
     dots = ""
     for e in r["spikes"]:
+        if e["ts"] < t0:
+            continue
         x = (e["ts"] - t0) / max(t1 - t0, 1) * w
         dots += (f'<circle cx="{x:.1f}" cy="{y_of(e["low"]):.1f}" r="3"><title>Dipped to {round(e["low"]):,} '
                  f'(-{e["pct"]:.0f}%)</title></circle>')
@@ -597,7 +601,7 @@ def icon_html(it):
     return f'<img class="icon" src="{escape(src)}" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">'
 
 
-def row_html(r, now):
+def row_html(r, now, hours):
     it, p = r["item"], r["pick"]
     dip = p["dip"]
     return f"""
@@ -607,13 +611,14 @@ def row_html(r, now):
   <td class="num buy" data-label="Buy offer">{p['bid']:,}</td>
   <td class="num dip" data-label="Dipped to">{round(dip['low']):,}<div class="sub">-{dip['pct']:.0f}%, {ago(dip['ts'], now)}</div></td>
   <td class="num sell" data-label="Est. sale">{round(r['sell_at']):,}</td>
-  <td class="chart">{sparkline(r)}</td>
+  <td class="chart">{sparkline(r, hours)}</td>
 </tr>"""
 
 
 def build_report(results, cfg, now, toolbar=""):
     top = [r for r in results if r["pick"]][:cfg["max_shown"]]
-    rows = "".join(row_html(r, now) for r in top)
+    hours = cfg["spike_max_age_hours"]
+    rows = "".join(row_html(r, now, hours) for r in top)
     if not rows:
         rows = '<tr><td colspan="6" class="empty">No good dips right now. Check back later.</td></tr>'
 
@@ -709,7 +714,7 @@ bid just above those low sales. Put in buy offers on a few of them at once at th
 and check back now and then. When one fills, sell it at whatever it's going for then. Est. sale and
 est. profit come from current prices, after the 2% tax. Rescan once in a while and move your
 bids to what's on the list.</p>
-<p>Chart of the last 24 hours: <i style="background:var(--sell)"></i>buy offers filling
+<p>Chart of the last {hours} hours: <i style="background:var(--sell)"></i>buy offers filling
 <i style="background:var(--buy)"></i>sell offers filling <i style="border-top:2px dashed var(--gold)"></i>your buy offer <i class="dot"></i>dips</p>
 </div>
 <div class="wrap"><table>
@@ -718,7 +723,7 @@ bids to what's on the list.</p>
 <th class="num" title="The price to put your GE buy offer in at: just above the latest dip">Buy offer</th>
 <th class="num" title="The lowest price of the latest dip, how far below normal it was, and how long ago">Dipped to</th>
 <th class="num" title="Roughly what it sells for now. Check the price again when your offer fills">Est. sale</th>
-<th class="chart">Last 24 hours</th></tr></thead>
+<th class="chart">Last {hours} hours</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
 </main>
 <script>
