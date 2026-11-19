@@ -603,10 +603,10 @@ def row_html(r, now):
     return f"""
 <tr data-id="{it['id']}">
   <td class="name"><div class="namewrap">{icon_html(it)}<div><a href="{ITEM_PAGE.format(it['id'])}" target="_blank" rel="noopener">{escape(it['name'])}</a></div></div></td>
+  <td class="num profit" data-label="Est. profit">{gp(p['profit'])}</td>
   <td class="num buy" data-label="Buy offer">{p['bid']:,}</td>
   <td class="num dip" data-label="Dipped to">{round(dip['low']):,}<div class="sub">-{dip['pct']:.0f}%, {ago(dip['ts'], now)}</div></td>
   <td class="num sell" data-label="Est. sale">{round(r['sell_at']):,}</td>
-  <td class="num profit" data-label="Est. profit">{gp(p['profit'])}</td>
   <td class="chart">{sparkline(r)}</td>
 </tr>"""
 
@@ -645,14 +645,15 @@ main {{ padding:0 max(16px, 3vw); max-width:1640px; margin:0 auto }}
 table {{ border-collapse:collapse; width:100%; min-width:960px }}
 tbody tr:hover td {{ background:rgba(255,255,255,.035) }}
 th.chart, td.chart {{ padding-left:28px }}
-td.name {{ white-space:nowrap }}
+td.name {{ white-space:nowrap; padding-right:28px }}
 th {{ text-align:left; font-size:13px; color:#fff; padding:9px 12px; border-bottom:1px solid var(--line);
   font-weight:700; white-space:nowrap; background:#2a2a2a }}
 td {{ padding:6px 12px; border-bottom:1px solid var(--line); vertical-align:middle }}
 tr:last-child td {{ border-bottom:0 }}
 td.empty {{ color:var(--muted); padding:24px 12px }}
-.num {{ font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap }}
-th.num {{ text-align:right }}
+.num {{ font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:center; white-space:nowrap }}
+td.num, th.num {{ padding-left:20px; padding-right:20px }}
+th.num {{ text-align:center }}
 .name {{ min-width:230px }}
 .namewrap {{ display:flex; align-items:center; gap:10px }}
 .icon {{ width:36px; height:32px; object-fit:contain; flex:none; image-rendering:pixelated }}
@@ -694,7 +695,7 @@ th[title] {{ cursor:help; text-decoration:underline dotted #777; text-underline-
   td.name {{ grid-column:1 / -1; min-width:0; white-space:normal }}
   td.chart {{ grid-column:1 / -1; order:1; padding:0 }}
   td.chart .spark {{ width:100%; height:auto }}
-  td.num {{ text-align:left; font-size:16px }}
+  td.num {{ text-align:left; font-size:16px; padding:0 }}
   td.num::before {{ content:attr(data-label); display:block; font:600 11px var(--sans); color:var(--muted);
     text-transform:uppercase; letter-spacing:.04em }}
 }}
@@ -713,10 +714,10 @@ bids to what's on the list.</p>
 </div>
 <div class="wrap"><table>
 <thead><tr><th>Item</th>
+<th class="num" title="Est. sale minus your buy offer, after the 2% GE tax">Est. profit</th>
 <th class="num" title="The price to put your GE buy offer in at: just above the latest dip">Buy offer</th>
 <th class="num" title="The lowest price of the latest dip, how far below normal it was, and how long ago">Dipped to</th>
 <th class="num" title="Roughly what it sells for now. Check the price again when your offer fills">Est. sale</th>
-<th class="num" title="Est. sale minus your buy offer, after the 2% GE tax">Est. profit</th>
 <th class="chart">Last 24 hours</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
 </main>
