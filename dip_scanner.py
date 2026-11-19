@@ -661,7 +661,8 @@ td.num, th.num {{ padding-left:20px; padding-right:20px }}
 th.num {{ text-align:center }}
 .name {{ min-width:230px }}
 .namewrap {{ display:flex; align-items:center; gap:10px }}
-.icon {{ width:36px; height:32px; object-fit:contain; flex:none; image-rendering:pixelated }}
+.icon {{ width:36px; height:32px; object-fit:contain; flex:none; image-rendering:pixelated;
+  filter:drop-shadow(0 0 0.6px rgba(255,255,255,.7)) }}  /* a hairline edge so dark items show on the dark page */
 .name a {{ color:var(--link); font-weight:600; text-decoration:none }}
 .name a:hover {{ text-decoration:underline }}
 .sub {{ color:var(--muted); font-size:11.5px; font-family:var(--mono) }}
