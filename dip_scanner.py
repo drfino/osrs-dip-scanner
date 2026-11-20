@@ -390,8 +390,10 @@ def analyze(item, recent, cfg, now, hourly=()):
     # even at the instasell price: a real hit on the lowball queue, not a wobble.
     # Only dips in the listing window count.
     beat = cfg["beat_by_pct"]
-    dump_cfg = dict(cfg, spike_min_pct=cfg["min_profit_pct"] + GE_TAX * 100 + beat)
-    spikes = find_spikes(pts, local, dump_cfg, now, long_base)
+    dump_cfg = dict(cfg, spike_min_pct=cfg["min_profit_pct"] + GE_TAX * 100 + beat,
+                    spike_max_age_hours=CHART_HOURS)
+    chart_dips = find_spikes(pts, local, dump_cfg, now, long_base)
+    spikes = [e for e in chart_dips if now - e["ts"] <= cfg["spike_max_age_hours"] * 3600]
 
     # Normal price now: the median instasell of the last 3 hours.
     recent_lows = [p["avgLowPrice"] for p in pts if p["timestamp"] >= now - 3 * 3600 and p.get("avgLowPrice")]
@@ -424,7 +426,7 @@ def analyze(item, recent, cfg, now, hourly=()):
     budget = offer_budget(cfg)
     if pick and budget and pick["bid"] > budget:
         score *= 0.1
-    return {"item": item, "pick": pick, "score": score, "spikes": spikes, "pts": pts,
+    return {"item": item, "pick": pick, "score": score, "spikes": spikes, "chart_dips": chart_dips, "pts": pts,
             "base": normal, "long_base": long_base, "sell_at": sell_at}
 
 
@@ -549,12 +551,15 @@ def scan_item(it, cfg, cache, now):
 
 # ----------------------------------------------------------------------------- HTML report
 
-def sparkline(r, hours, w=720, h=56):
-    """The last `hours` of prices: the same window dips are counted in."""
+CHART_HOURS = 24   # the chart shows a day, so repeat dips show up; only the last 12 hours set the bid
+
+
+def sparkline(r, now, cfg, w=720, h=56):
+    """The last CHART_HOURS of prices, with every dip in them."""
     if not r["pts"]:
         return ""
     t1 = r["pts"][-1]["timestamp"]
-    t0 = t1 - hours * 3600
+    t0 = t1 - CHART_HOURS * 3600
     pts = [p for p in r["pts"] if p["timestamp"] >= t0]
     vals = [p[k] for p in pts for k in ("avgLowPrice", "avgHighPrice") if p.get(k)] + [r["base"]]
     # The top of the chart ignores the odd trade far above normal (an overpriced buy offer someone
@@ -577,12 +582,15 @@ def sparkline(r, hours, w=720, h=56):
         return f'<polyline class="{cls}" points="{seg}"/>'
 
     dots = ""
-    for e in r["spikes"]:
+    max_age = cfg["spike_max_age_hours"]
+    for e in r.get("chart_dips", r["spikes"]):
         if e["ts"] < t0:
             continue
         x = (e["ts"] - t0) / max(t1 - t0, 1) * w
-        dots += (f'<circle cx="{x:.1f}" cy="{y_of(e["low"]):.1f}" r="3"><title>Dipped to {round(e["low"]):,} '
-                 f'(-{e["pct"]:.0f}%)</title></circle>')
+        tip = f'Dipped to {round(e["low"]):,} (-{e["pct"]:.0f}%), {ago(e["ts"], now)}'
+        if now - e["ts"] > max_age * 3600:
+            tip += f". Older than {max_age} hours, so it doesn't set the Buy offer"
+        dots += f'<circle cx="{x:.1f}" cy="{y_of(e["low"]):.1f}" r="3"><title>{tip}</title></circle>'
     bid_line = ""
     if r["pick"]:
         by = y_of(r["pick"]["bid"])
@@ -601,7 +609,7 @@ def icon_html(it):
     return f'<img class="icon" src="{escape(src)}" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">'
 
 
-def row_html(r, now, hours):
+def row_html(r, now, cfg):
     it, p = r["item"], r["pick"]
     dip = p["dip"]
     return f"""
@@ -611,14 +619,14 @@ def row_html(r, now, hours):
   <td class="num buy" data-label="Buy offer">{p['bid']:,}</td>
   <td class="num dip" data-label="Dipped to">{round(dip['low']):,}<div class="sub">-{dip['pct']:.0f}%, {ago(dip['ts'], now)}</div></td>
   <td class="num sell" data-label="Est. sale">{round(r['sell_at']):,}</td>
-  <td class="chart">{sparkline(r, hours)}</td>
+  <td class="chart">{sparkline(r, now, cfg)}</td>
 </tr>"""
 
 
 def build_report(results, cfg, now, toolbar=""):
     top = [r for r in results if r["pick"]][:cfg["max_shown"]]
-    hours = cfg["spike_max_age_hours"]
-    rows = "".join(row_html(r, now, hours) for r in top)
+    hours = CHART_HOURS
+    rows = "".join(row_html(r, now, cfg) for r in top)
     if not rows:
         rows = '<tr><td colspan="6" class="empty">No good dips right now. Check back later.</td></tr>'
 
